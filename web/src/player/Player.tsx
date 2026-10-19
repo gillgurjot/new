@@ -330,7 +330,9 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     const det = hlsRef.current?.levels?.[0]?.details
     if (det) produced = det.totalduration
     else if (v.seekable.length) produced = v.seekable.end(v.seekable.length - 1)
-    if (local >= 0 && local <= produced - 1) {
+    // The server deletes segments ~10 min behind the playhead, so jump further back with a new session.
+    const tooFarBack = v.currentTime - local > 540
+    if (local >= 0 && local <= produced - 1 && !tooFarBack) {
       v.currentTime = local
     } else {
       start({ startTime: abs })
