@@ -1,0 +1,127 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --color-bg: #0b0b12;
+  --color-surface: #14141f;
+  --color-surface-2: #1c1c2a;
+  --color-line: #2a2a3c;
+  --color-muted: #9a9ab0;
+  --color-accent: #a78bfa;
+  --color-accent-2: #f472b6;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: #ececf4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 h-11 font-semibold text-sm transition active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none select-none;
+}
+@utility btn-primary {
+  @apply btn bg-white text-black hover:bg-white/90;
+}
+@utility btn-accent {
+  @apply btn text-white bg-gradient-to-r from-violet-500 to-pink-500 hover:brightness-110;
+}
+@utility btn-ghost {
+  @apply btn bg-white/10 text-white hover:bg-white/20 backdrop-blur;
+}
+@utility icon-btn {
+  @apply inline-flex items-center justify-center rounded-full size-11 bg-white/10 hover:bg-white/20 backdrop-blur transition active:scale-95;
+}
+@utility input {
+  @apply w-full h-11 rounded-xl bg-surface-2 border border-line px-4 text-sm outline-none focus:border-accent transition placeholder:text-muted;
+}
+@utility card {
+  @apply rounded-2xl bg-surface border border-line;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-0.5 text-xs text-white/80;
+}
+
+.skeleton {
+  background: linear-gradient(100deg, #1a1a28 30%, #232336 50%, #1a1a28 70%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.fade-in {
+  animation: fadein 0.35s ease both;
+}
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Off-screen grid rows skip layout/paint for fast scrolling of big libraries. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 14px;
+  width: 14px;
+  border-radius: 9999px;
+  background: white;
+}
+.range::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: white;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.range::-webkit-slider-thumb {
+  margin-top: -5px;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}

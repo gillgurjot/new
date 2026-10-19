@@ -1,0 +1,24 @@
+services:
+  lumen:
+    build: .
+    image: lumen:latest
+    container_name: lumen
+    restart: unless-stopped
+    env_file: .env
+    # Run as your user; add the host's "render" group so ffmpeg can use the GPU.
+    # Find it with:  getent group render | cut -d: -f3
+    user: "${PUID:-1000}:${PGID:-1000}"
+    group_add:
+      - "${RENDER_GID:-993}"
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - "${LUMEN_PORT:-8096}:8096"
+    volumes:
+      - ./config:/config
+      - ${MEDIA_DIR:-/srv/media}:/media:ro
+      # Transcode scratch space. A RAM disk is fastest; switch to a host folder if RAM is tight.
+      - type: tmpfs
+        target: /transcode
+        tmpfs:
+          size: 8589934592 # 8 GB
