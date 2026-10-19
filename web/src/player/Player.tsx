@@ -488,11 +488,19 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     if (!info || !('mediaSession' in navigator)) return
     const it = info.item
     const art = landscapeUrl(it, 512)
+    // The OS fetches artwork without our cookie (e.g. Firefox on Android), so pass the media token.
+    const src = art && new URL(art, location.origin).toString() + `&t=${encodeURIComponent(info.token)}`
     navigator.mediaSession.metadata = new MediaMetadata({
       title: it.title,
       artist: it.seriesTitle ? `${it.seriesTitle} · ${episodeLabel(it)}` : it.year ? String(it.year) : '',
-      artwork: art ? [{ src: art, sizes: '512x288', type: 'image/jpeg' }] : [],
+      artwork: src ? [{ src, sizes: '512x288', type: 'image/jpeg' }] : [],
     })
+  }, [info])
+
+  // Separate from the metadata above: `time` changes several times a second, and resetting
+  // the metadata that often makes the browser refetch the artwork each time.
+  useEffect(() => {
+    if (!info || !('mediaSession' in navigator)) return
     const ms = navigator.mediaSession
     ms.setActionHandler('play', () => videoRef.current?.play())
     ms.setActionHandler('pause', () => videoRef.current?.pause())
