@@ -13,6 +13,8 @@ func TestMovieInfo(t *testing.T) {
 		{"/m/Arrival (2016) [tmdbid-329865]/Arrival.mkv", "Arrival", 2016},
 		{"/m/Some Film/Some Film.mp4", "Some Film", 0},
 		{"/m/2001 A Space Odyssey (1968)/2001 A Space Odyssey (1968).mkv", "2001 A Space Odyssey", 1968},
+		{"/m/Rage of Stars (2026)/Rage.Of.Stars.2025.1080p.WEB-DL.AAC.H.264-HDSWEB.mkv", "Rage of Stars", 2026},
+		{"/m/He's Just Not That Into You (2009)/He.s.Just.Not.That.Into.You.2009.1080p.WEB-DL.mkv", "He's Just Not That Into You", 2009},
 	}
 	for _, c := range cases {
 		title, year, _ := MovieInfo(c.path)

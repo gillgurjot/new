@@ -330,7 +330,7 @@ func (s *Scanner) addEpisode(lib *store.Library, m *store.MediaFile) error {
 	}
 	if created {
 		sd := filepath.Join(seriesDir, parts[max(0, len(parts)-2)])
-		s.localArt(seasonID, "poster", filepath.Join(seriesDir, "season"+pad2(ep.Season)+"-poster"), filepath.Join(sd, "poster"), filepath.Join(sd, "folder"))
+		s.localArt(seasonID, "poster", filepath.Join(seriesDir, seasonArt(ep.Season)+"-poster"), filepath.Join(sd, "poster"), filepath.Join(sd, "folder"))
 	}
 	title := EpisodeTitle(m.Path)
 	if title == "" {
@@ -350,6 +350,14 @@ func (s *Scanner) addEpisode(lib *store.Library, m *store.MediaFile) error {
 	base := strings.TrimSuffix(m.Path, filepath.Ext(m.Path))
 	s.localArt(id, "still", base+"-thumb", base)
 	return nil
+}
+
+// seasonArt is the Jellyfin/Kodi base name for season artwork in the series folder.
+func seasonArt(n int) string {
+	if n == 0 {
+		return "season-specials"
+	}
+	return "season" + pad2(n)
 }
 
 func pad2(n int) string {

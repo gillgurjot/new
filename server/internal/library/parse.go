@@ -24,7 +24,7 @@ var skipDirs = map[string]bool{
 
 func SkipDir(name string) bool {
 	n := strings.ToLower(name)
-	return strings.HasPrefix(n, ".") || skipDirs[n]
+	return strings.HasPrefix(n, ".") || skipDirs[n] || strings.HasSuffix(n, ".trickplay") // Jellyfin trickplay folders
 }
 
 func SkipFile(name string) bool {
@@ -87,9 +87,10 @@ func MovieInfo(path string) (title string, year int, tmdb int) {
 	if tmdb == 0 {
 		tmdb = dtm
 	}
-	// Prefer folder when the file name is generic (e.g. "movie.mkv", "VTS_01_1") or lacks a year.
+	// Prefer the folder when it is named "Title (Year)" (Radarr/Jellyfin style; file names are often
+	// release names with a wrong year), or when the file name is generic ("movie.mkv", "VTS_01_1").
 	generic := len(title) < 2 || strings.EqualFold(title, "movie") || strings.HasPrefix(strings.ToLower(title), "vts")
-	if (generic || (year == 0 && dy != 0)) && dt != "" && !SkipDir(dir) {
+	if (generic || dy != 0) && dt != "" && !SkipDir(dir) {
 		return dt, dy, tmdb
 	}
 	return title, year, tmdb

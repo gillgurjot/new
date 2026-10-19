@@ -76,7 +76,9 @@ func BuildArgs(m *store.MediaFile, d Decision, pipe Pipeline, caps hwaccel.Caps,
 	if pipe == PipeCopy {
 		a = append(a, "-map", vmap, "-c:v", "copy")
 		if m.VideoCodec == "hevc" {
-			a = append(a, "-tag:v", "hvc1")
+			// Some WEB-DLs keep VPS/SPS/PPS in-band only (near-empty hvcC). Tagging those hvc1 as-is
+			// gives unplayable segments; going through Annex B lets the muxer rebuild a full hvcC.
+			a = append(a, "-bsf:v", "hevc_mp4toannexb", "-tag:v", "hvc1")
 		}
 	} else {
 		filter := videoFilter(d, pipe, caps)
