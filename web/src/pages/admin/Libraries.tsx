@@ -43,7 +43,7 @@ export default function Libraries() {
           return (
             <div key={l.id} className="card p-5">
               <div className="flex items-start gap-3">
-                <div className="size-11 rounded-xl bg-gradient-to-br from-violet-500/30 to-pink-500/30 grid place-items-center shrink-0">
+                <div className="size-11 rounded-xl bg-gradient-to-br from-white/10 to-white/5 grid place-items-center shrink-0">
                   {l.type === 'tv' ? <Tv className="size-5" /> : <Clapperboard className="size-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -60,7 +60,7 @@ export default function Libraries() {
                 <div className="mt-4">
                   <div className="text-xs text-muted mb-1.5">Scanning · {st.phase} {st.total ? `${st.done}/${st.total}` : ''}</div>
                   <div className="h-1.5 rounded bg-white/10 overflow-hidden">
-                    <div className={`h-full bg-gradient-to-r from-violet-400 to-pink-400 ${st.total ? '' : 'animate-pulse w-1/3'}`} style={st.total ? { width: `${(st.done / st.total) * 100}%` } : undefined} />
+                    <div className={`h-full bg-gradient-to-r from-white to-white ${st.total ? '' : 'animate-pulse w-1/3'}`} style={st.total ? { width: `${(st.done / st.total) * 100}%` } : undefined} />
                   </div>
                 </div>
               ) : (
@@ -115,7 +115,7 @@ function LibraryDialog({ lib, onClose, onSaved }: { lib: Library | null; onClose
           {!lib && (
             <div className="grid grid-cols-2 gap-2">
               {(['movies', 'tv'] as const).map((t) => (
-                <button key={t} onClick={() => { setType(t); if (!name) setName(t === 'tv' ? 'TV Shows' : 'Movies') }} className={`h-14 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition ${type === t ? 'border-violet-400 bg-violet-500/15' : 'border-line hover:border-white/30'}`}>
+                <button key={t} onClick={() => { setType(t); if (!name) setName(t === 'tv' ? 'TV Shows' : 'Movies') }} className={`h-14 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition ${type === t ? 'border-white/60 bg-white/10' : 'border-line hover:border-white/30'}`}>
                   {t === 'tv' ? <Tv className="size-5" /> : <Clapperboard className="size-5" />}{t === 'tv' ? 'TV shows' : 'Movies'}
                 </button>
               ))}
@@ -130,7 +130,7 @@ function LibraryDialog({ lib, onClose, onSaved }: { lib: Library | null; onClose
                 {paths.length > 1 && <button onClick={() => setPaths(paths.filter((_, j) => j !== i))} className="icon-btn shrink-0"><X className="size-4" /></button>}
               </div>
             ))}
-            <button onClick={() => setPaths([...paths, ''])} className="text-sm text-violet-300 hover:text-violet-200">+ Add another folder</button>
+            <button onClick={() => setPaths([...paths, ''])} className="text-sm text-accent hover:text-white">+ Add another folder</button>
           </div>
           <p className="text-xs text-muted">
             {type === 'tv' ? 'Expected layout: Show Name/Season 01/Show Name S01E01.mkv' : 'Expected layout: Movie Title (2020)/Movie Title (2020).mkv'}
@@ -168,7 +168,7 @@ function FolderPicker({ start, onPick, onClose }: { start: string; onPick: (p: s
           {q.error && <div className="text-sm text-red-300 p-3">Can’t open this folder.</div>}
           {q.data?.dirs.map((d) => (
             <button key={d} onClick={() => setPath(join(d))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-sm flex items-center gap-2">
-              <Folder className="size-4 text-violet-300" /> {d}
+              <Folder className="size-4 text-accent" /> {d}
             </button>
           ))}
           {q.data && !q.data.dirs.length && <div className="text-sm text-muted p-3">No sub-folders.</div>}

@@ -30,6 +30,11 @@ type Config struct {
 	TMDBAPIKey   string
 	TMDBLanguage string
 
+	// Optional Seerr (Overseerr/Jellyseerr) server for requesting new titles.
+	SeerrURL       string
+	SeerrAPIKey    string
+	SeerrPublicURL string // link shown to people, e.g. https://request.example.com
+
 	HWAccel       string // auto | vaapi | qsv | none
 	VAAPIDevice   string
 	MaxTranscodes int
@@ -69,6 +74,9 @@ func Load() (*Config, error) {
 		OIDCGroupsClaim:  env("OIDC_GROUPS_CLAIM", "groups"),
 		TMDBAPIKey:       env("TMDB_API_KEY", ""),
 		TMDBLanguage:     env("TMDB_LANGUAGE", "en-US"),
+		SeerrURL:         strings.TrimRight(env("SEERR_URL", ""), "/"),
+		SeerrAPIKey:      env("SEERR_API_KEY", ""),
+		SeerrPublicURL:   strings.TrimRight(env("SEERR_PUBLIC_URL", ""), "/"),
 		HWAccel:          strings.ToLower(env("LUMEN_HWACCEL", "auto")),
 		VAAPIDevice:      env("LUMEN_VAAPI_DEVICE", "/dev/dri/renderD128"),
 		SecretKey:        env("LUMEN_SECRET_KEY", ""),

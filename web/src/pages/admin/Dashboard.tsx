@@ -34,12 +34,12 @@ export default function Dashboard() {
             return (
               <div key={x.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-white/5">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  {x.paused ? <Pause className="size-5 text-muted shrink-0" /> : <Play className="size-5 text-violet-300 shrink-0" />}
+                  {x.paused ? <Pause className="size-5 text-muted shrink-0" /> : <Play className="size-5 text-accent shrink-0" />}
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{x.title}</div>
                     <div className="text-xs text-muted truncate">{x.username} · {x.device}</div>
                     <div className="mt-1.5 h-1 rounded bg-white/10 overflow-hidden w-48 max-w-full">
-                      <div className="h-full bg-violet-400" style={{ width: `${x.duration ? (x.position / x.duration) * 100 : 0}%` }} />
+                      <div className="h-full bg-white" style={{ width: `${x.duration ? (x.position / x.duration) * 100 : 0}%` }} />
                     </div>
                   </div>
                 </div>

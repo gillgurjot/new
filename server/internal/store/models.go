@@ -29,6 +29,8 @@ type User struct {
 	SubtitleMode string  `json:"subtitleMode"`
 	CreatedAt    int64   `json:"createdAt"`
 	LastLogin    int64   `json:"lastLogin"`
+	CanDownload  bool    `json:"canDownload"`
+	CanRequest   bool    `json:"canRequest"`
 }
 
 // CanAccess reports whether the user may see the given library.
@@ -161,6 +163,9 @@ type MediaFile struct {
 	Sidecars     []Stream  `json:"sidecars"`  // external subtitle files
 	Chapters     []Chapter `json:"chapters"`
 	Trickplay    bool      `json:"trickplay"`
+	// End credits found by analysing the picture (0 = none found or not analysed yet).
+	CreditsStart float64 `json:"creditsStart,omitempty"`
+	CreditsEnd   float64 `json:"creditsEnd,omitempty"`
 }
 
 // AudioStreams returns only audio streams.

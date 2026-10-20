@@ -204,7 +204,7 @@ func (f *Fetcher) movie(ctx context.Context, it *store.Item) {
 		m.Poster = f.download(ctx, it.ID, "poster", "w780", d.PosterPath)
 	}
 	if !strings.HasPrefix(it.Backdrop, "/") {
-		m.Backdrop = f.download(ctx, it.ID, "backdrop", "w1280", d.BackdropPath)
+		m.Backdrop = f.download(ctx, it.ID, "backdrop", "w1280", bestBackdrop(d.Images, d.BackdropPath))
 	}
 	if !strings.HasPrefix(it.Logo, "/") {
 		m.Logo = f.download(ctx, it.ID, "logo", "w500", bestLogo(d.Images, f.lang))
@@ -254,7 +254,7 @@ func (f *Fetcher) series(ctx context.Context, it *store.Item) {
 		m.Poster = f.download(ctx, it.ID, "poster", "w780", d.PosterPath)
 	}
 	if !strings.HasPrefix(it.Backdrop, "/") {
-		m.Backdrop = f.download(ctx, it.ID, "backdrop", "w1280", d.BackdropPath)
+		m.Backdrop = f.download(ctx, it.ID, "backdrop", "w1280", bestBackdrop(d.Images, d.BackdropPath))
 	}
 	if !strings.HasPrefix(it.Logo, "/") {
 		m.Logo = f.download(ctx, it.ID, "logo", "w500", bestLogo(d.Images, f.lang))

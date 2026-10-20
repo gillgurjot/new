@@ -54,3 +54,10 @@ export function posterUrl(item: Item, width: number): string | undefined {
 export function personImage(path?: string) {
   return path ? `/api/person-image?p=${encodeURIComponent(path)}` : undefined
 }
+
+/** TMDB artwork for titles that aren't in the library, proxied through Lumen. */
+export function tmdbImage(path: string | undefined, size: 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' = 'w342') {
+  return path ? `/api/tmdb-image?p=${encodeURIComponent(path)}&s=${size}` : undefined
+}
+
+export const downloadUrl = (itemId: number) => `/api/items/${itemId}/download`

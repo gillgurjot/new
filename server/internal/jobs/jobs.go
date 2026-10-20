@@ -26,6 +26,7 @@ type Runner struct {
 	FFmpeg       string
 	TrickplayDir string
 	Trickplay    bool
+	Credits      bool // look for end credits in the background
 	ScanInterval time.Duration
 	Log          *slog.Logger
 
@@ -46,6 +47,9 @@ func (r *Runner) Start(ctx context.Context) {
 	go r.scanLoop(ctx)
 	if r.Trickplay {
 		go r.trickplayLoop(ctx)
+	}
+	if r.Credits {
+		go r.creditsLoop(ctx)
 	}
 }
 

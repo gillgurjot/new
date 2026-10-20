@@ -7,10 +7,11 @@ export interface PlayerPrefs {
   subtitleBackground: boolean
   autoplayNext: boolean
   skipIntro: boolean
+  skipCredits: boolean
 }
 
 const KEY = 'lumen.player'
-const defaults: PlayerPrefs = { quality: 'auto', volume: 1, muted: false, subtitleSize: 'medium', subtitleBackground: false, autoplayNext: true, skipIntro: false }
+const defaults: PlayerPrefs = { quality: 'auto', volume: 1, muted: false, subtitleSize: 'medium', subtitleBackground: false, autoplayNext: true, skipIntro: false, skipCredits: false }
 
 export function loadPrefs(): PlayerPrefs {
   try {

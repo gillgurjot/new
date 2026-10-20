@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Hls from 'hls.js/light'
 import {
   ArrowLeft, Cast, Gauge, Info, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, RotateCw, Settings2, SkipForward,
-  Subtitles, Volume1, Volume2, VolumeX, X,
+  Subtitles, Users, Volume1, Volume2, VolumeX, X,
 } from 'lucide-react'
 import { ApiError, api, landscapeUrl, post } from '../api/client'
 import type { Item, PlaybackInfo } from '../api/types'
@@ -10,15 +10,25 @@ import { chromecastProfile, detectProfile } from '../lib/device'
 import { episodeLabel, formatTime } from '../lib/format'
 import { loadPrefs, qualityOptions, savePrefs } from '../lib/prefs'
 import Spinner from '../components/Spinner'
+import { useUser } from '../lib/user'
 import { activeCues, type Cue, parseVTT } from './vtt'
 import { useTrickplay } from './trickplay'
 import { castLoad, endCast, requestCast, useCast } from './cast'
+import { partyPosition, useParty } from './party'
+import { PartyOverlay, PartyPanel } from './PartyPanel'
+import { toast } from '../components/ui'
 
 interface Props {
   itemId: number
   startTime?: number
   onExit: () => void
   onNext: (id: number) => void
+  /** Watch party to sync with, if any. */
+  partyId?: string | null
+  /** Open the watch-together panel straight away (just created a party). */
+  partyPanel?: boolean
+  onStartParty?: (position: number) => void
+  onLeaveParty?: () => void
 }
 
 interface StartOpts {
@@ -32,7 +42,7 @@ type Menu = null | 'subs' | 'audio' | 'quality' | 'speed' | 'info'
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-export default function Player({ itemId, startTime, onExit, onNext }: Props) {
+export default function Player({ itemId, startTime, onExit, onNext, partyId, partyPanel, onStartParty, onLeaveParty }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -41,9 +51,12 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
   const restarting = useRef(false)
   const retries = useRef(0)
 
+  const me = useUser()
   const [info, setInfo] = useState<PlaybackInfo | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const loadingRef = useRef(true)
+  loadingRef.current = loading
   const [paused, setPaused] = useState(true)
   const [waiting, setWaiting] = useState(false)
   const [time, setTime] = useState(0) // absolute media time
@@ -65,6 +78,11 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
   const [casting, setCasting] = useState(false)
   const castState = useCast()
   const trick = useTrickplay(info?.trickplay, info?.media.id)
+  const party = useParty(partyId || null)
+  const partyRef = useRef(party)
+  partyRef.current = party
+  const [partyOpen, setPartyOpen] = useState(!!partyPanel)
+  const [needTap, setNeedTap] = useState(false)
 
   const offset = info && info.method !== 'direct' ? info.startOffset : 0
   const duration = info?.duration || 0
@@ -241,6 +259,14 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     start({ startTime: time, quality: q })
   }
 
+  // Moving to another episode takes the whole party along.
+  const goNext = useCallback((id: number) => {
+    const p = partyRef.current
+    // Wait for the room to switch first, or the new page would see the old item and bounce back.
+    if (p) p.send('item', 0, id).finally(() => onNext(id))
+    else onNext(id)
+  }, [onNext])
+
   // ---------- video events ----------
 
   useEffect(() => {
@@ -264,7 +290,7 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     const onCanPlay = () => setLoading(false)
     const onEnded = async () => {
       await report()
-      if (next && loadPrefs().autoplayNext) onNext(next.id)
+      if (next && loadPrefs().autoplayNext) goNext(next.id)
     }
     const onErr = () => {
       const i = infoRef.current
@@ -304,7 +330,7 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
       v.removeEventListener('ended', onEnded)
       v.removeEventListener('error', onErr)
     }
-  }, [next, onNext, report, itemId, attach])
+  }, [next, goNext, report, itemId, attach])
 
   useEffect(() => {
     const v = videoRef.current!
@@ -315,12 +341,13 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
 
   // ---------- seeking ----------
 
-  const seek = useCallback((abs: number) => {
+  const seek = useCallback((abs: number, broadcast = true) => {
     const v = videoRef.current
     const i = infoRef.current
     if (!v || !i) return
     abs = Math.max(0, Math.min(abs, (i.duration || abs) - 0.5))
     setTime(abs)
+    if (broadcast) partyRef.current?.send('seek', abs)
     if (i.method === 'direct') {
       v.currentTime = abs
       return
@@ -339,12 +366,27 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     }
   }, [start])
 
+  // Where the video is, in media time (HLS sessions start at an offset).
+  const nowAbs = useCallback(() => {
+    const i = infoRef.current
+    const v = videoRef.current
+    return (i && i.method !== 'direct' ? i.startOffset : 0) + (v?.currentTime || 0)
+  }, [])
+  const userPlay = useCallback(() => {
+    videoRef.current?.play().catch(() => {})
+    setNeedTap(false)
+    partyRef.current?.send('play', nowAbs())
+  }, [nowAbs])
+  const userPause = useCallback(() => {
+    videoRef.current?.pause()
+    partyRef.current?.send('pause', nowAbs())
+  }, [nowAbs])
   const togglePlay = useCallback(() => {
     const v = videoRef.current
     if (!v) return
-    if (v.paused) v.play().catch(() => {})
-    else v.pause()
-  }, [])
+    if (v.paused) userPlay()
+    else userPause()
+  }, [userPlay, userPause])
 
   const toggleFullscreen = useCallback(async () => {
     const el = wrapRef.current as HTMLElement & { webkitRequestFullscreen?: () => void }
@@ -367,9 +409,9 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     return () => document.removeEventListener('fullscreenchange', on)
   }, [])
 
-  const showFlash = (s: string) => {
+  const showFlash = (s: string, ms = 600) => {
     setFlash(s)
-    setTimeout(() => setFlash((f) => (f === s ? null : f)), 600)
+    setTimeout(() => setFlash((f) => (f === s ? null : f)), ms)
   }
 
   // ---------- controls visibility ----------
@@ -438,10 +480,11 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
           break
         }
         case 'n':
-          if (next) onNext(next.id)
+          if (next) goNext(next.id)
           break
         case 'Escape':
           if (menu) setMenu(null)
+          else if (partyOpen) setPartyOpen(false)
           else if (!document.fullscreenElement) onExit()
           break
         default:
@@ -451,13 +494,39 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [time, seek, togglePlay, toggleFullscreen, info, subIndex, next, onNext, onExit, menu, poke])
+  }, [time, seek, togglePlay, toggleFullscreen, info, subIndex, next, goNext, onExit, menu, poke, partyOpen])
 
   // ---------- chapters / intro / up next ----------
 
   const chapters = info?.chapters || []
   const intro = chapters.find((c) => /intro|opening|recap|^op$/i.test(c.title) && time >= c.start && time < c.end - 1)
-  const credits = chapters.find((c) => /credits|ending|^ed$|outro/i.test(c.title))
+  // End credits: a chapter from the file, else what the server found by looking at the picture.
+  const credits = useMemo(() => {
+    const ch = chapters.find((c) => /credits|ending|^ed$|outro/i.test(c.title) && c.start > duration * 0.5)
+    if (ch) return { start: ch.start, end: ch.end }
+    const m = info?.media
+    return m?.creditsStart ? { start: m.creditsStart, end: m.creditsEnd || duration } : null
+  }, [chapters, info?.media, duration])
+  const inCredits = !!credits && time >= credits.start && time < credits.end - 2
+  const creditsSkipped = useRef(false)
+  useEffect(() => {
+    creditsSkipped.current = false
+  }, [itemId])
+  useEffect(() => {
+    if (inCredits && next && prefs.skipCredits && !creditsSkipped.current && !paused) {
+      creditsSkipped.current = true
+      goNext(next.id)
+    }
+  }, [inCredits, next, prefs.skipCredits, paused, goNext])
+  // Movies: skip to after the credits (a post-credits scene) or finish.
+  const skipCredits = () => {
+    if (!credits) return
+    if (next) return goNext(next.id)
+    if (duration - credits.end > 10) return seek(credits.end)
+    const i = infoRef.current
+    if (i) post('/api/playback/progress', { sessionId: i.sessionId, itemId: i.item.id, position: duration, paused: true }).catch(() => null).finally(onExit)
+    else onExit()
+  }
   const introSkipped = useRef<number | null>(null)
   useEffect(() => {
     if (intro && prefs.skipIntro && introSkipped.current !== intro.start) {
@@ -475,12 +544,12 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
   useEffect(() => {
     if (upNext === null) return
     if (upNext <= 0) {
-      if (next) onNext(next.id)
+      if (next) goNext(next.id)
       return
     }
     const t = setTimeout(() => setUpNext((n) => (n === null ? null : n - 1)), 1000)
     return () => clearTimeout(t)
-  }, [upNext, next, onNext])
+  }, [upNext, next, goNext])
 
   // ---------- media session (lock screen controls) ----------
 
@@ -502,13 +571,65 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
   useEffect(() => {
     if (!info || !('mediaSession' in navigator)) return
     const ms = navigator.mediaSession
-    ms.setActionHandler('play', () => videoRef.current?.play())
-    ms.setActionHandler('pause', () => videoRef.current?.pause())
+    ms.setActionHandler('play', userPlay)
+    ms.setActionHandler('pause', userPause)
     ms.setActionHandler('seekbackward', () => seek(time - 10))
     ms.setActionHandler('seekforward', () => seek(time + 10))
     ms.setActionHandler('seekto', (d) => d.seekTime != null && seek(d.seekTime))
-    ms.setActionHandler('nexttrack', next ? () => onNext(next.id) : null)
-  }, [info, seek, time, next, onNext])
+    ms.setActionHandler('nexttrack', next ? () => goNext(next.id) : null)
+  }, [info, seek, time, next, goNext, userPlay, userPause])
+
+  // ---------- watch together ----------
+
+  // Apply what the room says: same item, same play/pause, same position (within a second or two).
+  const seenVersion = useRef(0)
+  useEffect(() => {
+    const st = party?.state
+    const v = videoRef.current
+    if (!party || !st || !v || !infoRef.current) return
+    if (st.itemId !== itemId) {
+      onNext(st.itemId)
+      return
+    }
+    const fresh = party.stateVersion !== seenVersion.current
+    seenVersion.current = party.stateVersion
+    const target = partyPosition(st, party.offset)
+    // While the stream is still starting, wait: this effect runs again once it's playing.
+    if (!loading && Math.abs(nowAbs() - target) > 1.5) seek(target, false)
+    if (st.playing && v.paused) {
+      v.play().then(() => setNeedTap(false)).catch(() => setNeedTap(true))
+    } else if (!st.playing && !v.paused) {
+      v.pause()
+    }
+    if (fresh && st.by && st.by !== (me.displayName || me.username) && st.action && st.action !== 'item') {
+      showFlash(`${st.by} ${{ play: 'pressed play', pause: 'paused', seek: 'jumped to ' + formatTime(st.position) }[st.action]}`, 2200)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [party?.stateVersion, !!info, loading])
+
+  // Gently pull back into sync if this device drifts (slow network, buffering).
+  const lastCorrect = useRef(0)
+  useEffect(() => {
+    if (!party) return
+    const t = setInterval(() => {
+      const st = partyRef.current?.state
+      const v = videoRef.current
+      if (!st || !v || !st.playing || v.paused || loadingRef.current || Date.now() - lastCorrect.current < 15_000) return
+      const target = partyPosition(st, partyRef.current!.offset)
+      if (Math.abs(nowAbs() - target) > 3) {
+        lastCorrect.current = Date.now()
+        seek(target, false)
+      }
+    }, 4000)
+    return () => clearInterval(t)
+  }, [!!party, seek, nowAbs])
+
+  useEffect(() => {
+    if (party?.ended) {
+      toast('The watch party has ended', 'info')
+      onLeaveParty?.()
+    }
+  }, [party?.ended, onLeaveParty])
 
   // ---------- casting ----------
 
@@ -630,7 +751,7 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
       {casting && (
         <div className="absolute inset-0 grid place-items-center bg-black/80">
           <div className="text-center">
-            <Cast className="size-14 mx-auto mb-4 text-violet-300" />
+            <Cast className="size-14 mx-auto mb-4 text-accent" />
             <div className="text-xl font-bold mb-1">Playing on {castState.deviceName || 'Chromecast'}</div>
             <div className="text-muted mb-6">{item?.title}</div>
             <button
@@ -660,16 +781,30 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
         </div>
       )}
 
-      {/* Skip intro */}
+      {/* Skip intro / credits */}
       {intro && !prefs.skipIntro && (
-        <button onClick={() => seek(intro.end)} className="absolute right-6 bottom-32 md:right-10 md:bottom-36 btn-primary !rounded-lg fade-in z-10">
+        <button onClick={() => seek(intro.end)} className="absolute right-4 bottom-32 md:right-10 md:bottom-36 btn-primary !rounded-xl fade-in z-10">
           Skip intro <SkipForward className="size-4" />
         </button>
+      )}
+      {inCredits && upNext === null && !intro && (
+        <button onClick={skipCredits} className="absolute right-4 bottom-32 md:right-10 md:bottom-36 btn-primary !rounded-xl fade-in z-10">
+          {next ? 'Next episode' : 'Skip credits'} <SkipForward className="size-4" />
+        </button>
+      )}
+
+      {/* Autoplay was blocked when joining a party that's already playing */}
+      {needTap && !error && (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/50" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => { const st = party?.state; if (st) seek(partyPosition(st, party!.offset), false); videoRef.current?.play().then(() => setNeedTap(false)).catch(() => {}) }} className="btn-primary !h-14 !px-8 !text-base">
+            <Play className="size-5 fill-current" /> Join the party
+          </button>
+        </div>
       )}
 
       {/* Up next */}
       {upNext !== null && next && (
-        <div className="absolute right-4 bottom-28 md:right-10 md:bottom-32 z-10 w-72 card overflow-hidden fade-in shadow-2xl">
+        <div className="absolute right-4 bottom-28 md:right-10 md:bottom-32 z-10 w-72 max-w-[calc(100%-2rem)] rounded-2xl bg-surface/95 backdrop-blur-xl border border-line overflow-hidden fade-in shadow-2xl">
           <div className="relative aspect-video">
             <img src={landscapeUrl(next, 320)} alt="" className="size-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" />
@@ -680,7 +815,7 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
           </div>
           <div className="flex gap-2 p-2">
             <button className="btn-ghost !h-9 flex-1" onClick={() => { setUpNext(null); setUpNextDismissed(true) }}>Cancel</button>
-            <button className="btn-primary !h-9 flex-1" onClick={() => onNext(next.id)}>Play now</button>
+            <button className="btn-primary !h-9 flex-1" onClick={() => goNext(next.id)}>Play now</button>
           </div>
         </div>
       )}
@@ -688,10 +823,31 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
       {/* Top bar */}
       <div className={`absolute top-0 inset-x-0 p-4 md:p-6 flex items-start gap-3 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${controls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <button onClick={onExit} className="icon-btn" aria-label="Back"><ArrowLeft className="size-5" /></button>
-        <div className="min-w-0 pt-1">
-          <div className="font-bold text-lg truncate">{item?.seriesTitle || item?.title}</div>
-          {item?.seriesTitle && <div className="text-sm text-white/70 truncate">{episodeLabel(item)} · {item.title}</div>}
+        <div className="min-w-0 pt-1 flex-1">
+          <div className="font-semibold text-[17px] truncate">{item?.seriesTitle || item?.title}</div>
+          {item?.seriesTitle && <div className="text-sm text-white/65 truncate">{episodeLabel(item)} · {item.title}</div>}
         </div>
+        {party ? (
+          <button onClick={(e) => { e.stopPropagation(); setPartyOpen((o) => !o) }} className={`btn-ghost !h-11 !px-4 ${partyOpen ? '!bg-white !text-black' : ''}`} aria-label="Watch together">
+            <Users className="size-5" /> <span className="tabular-nums">{party.members.length || 1}</span>
+          </button>
+        ) : onStartParty && (
+          <button onClick={(e) => { e.stopPropagation(); onStartParty(nowAbs()) }} className="icon-btn" aria-label="Watch together" title="Watch together">
+            <Users className="size-5" />
+          </button>
+        )}
+      </div>
+
+      {party && <PartyOverlay party={party} open={partyOpen} />}
+      {party && partyOpen && item && <PartyPanel party={party} itemId={item.id} onClose={() => setPartyOpen(false)} onLeave={() => { setPartyOpen(false); onLeaveParty?.() }} />}
+
+      {/* Centre controls on touch screens */}
+      <div className={`absolute inset-0 hidden pointer-coarse:flex items-center justify-center gap-10 pointer-events-none transition-opacity duration-300 ${controls && !loading && !waiting && !error && !casting && !needTap ? 'opacity-100' : 'opacity-0'}`}>
+        <button onClick={(e) => { e.stopPropagation(); seek(time - 10); poke() }} className={`size-14 rounded-full grid place-items-center bg-black/35 backdrop-blur-sm ${controls ? 'pointer-events-auto' : ''}`} aria-label="Back 10 seconds"><RotateCcw className="size-7" /></button>
+        <button onClick={(e) => { e.stopPropagation(); togglePlay(); poke() }} className={`size-[72px] rounded-full grid place-items-center bg-black/40 backdrop-blur-sm ${controls ? 'pointer-events-auto' : ''}`} aria-label={paused ? 'Play' : 'Pause'}>
+          {paused ? <Play className="size-9 fill-current ml-1" /> : <Pause className="size-9 fill-current" />}
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); seek(time + 10); poke() }} className={`size-14 rounded-full grid place-items-center bg-black/35 backdrop-blur-sm ${controls ? 'pointer-events-auto' : ''}`} aria-label="Forward 10 seconds"><RotateCw className="size-7" /></button>
       </div>
 
       {/* Bottom controls */}
@@ -716,9 +872,10 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
           <div className="relative w-full h-1 group-hover:h-1.5 transition-all rounded-full bg-white/20 overflow-hidden">
             <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: `${bufPct}%` }} />
             {offset > 0 && <div className="absolute inset-y-0 left-0 bg-white/10" style={{ width: `${(offset / duration) * 100}%` }} />}
-            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-400 to-pink-400" style={{ width: `${(hover && dragging.current ? hover.t / duration : pct / 100) * 100}%` }} />
+            <div className="absolute inset-y-0 left-0 bg-white" style={{ width: `${(hover && dragging.current ? hover.t / duration : pct / 100) * 100}%` }} />
           </div>
           {chapters.map((c, i) => i > 0 && duration > 0 && <div key={i} className="absolute h-1.5 w-0.5 bg-black/60" style={{ left: `${(c.start / duration) * 100}%` }} />)}
+          {credits && duration > 0 && <div className="absolute h-1 rounded-r-full bg-white/25 pointer-events-none" style={{ left: `${(credits.start / duration) * 100}%`, width: `${((credits.end - credits.start) / duration) * 100}%` }} title="Credits" />}
           <div className="absolute size-3.5 rounded-full bg-white shadow -translate-x-1/2 scale-0 group-hover:scale-100 transition" style={{ left: `${pct}%` }} />
           {hover && (
             <div className="absolute bottom-7 -translate-x-1/2 flex flex-col items-center pointer-events-none" style={{ left: Math.max(trick.width / 2 || 30, Math.min(hover.x, (barRef.current?.clientWidth || 0) - (trick.width / 2 || 30))) }}>
@@ -732,12 +889,12 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
         </div>
 
         <div className="flex items-center gap-1 md:gap-2 mt-1">
-          <button onClick={togglePlay} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label={paused ? 'Play' : 'Pause'}>
+          <button onClick={togglePlay} className="icon-btn !bg-transparent hover:!bg-white/10 pointer-coarse:hidden" aria-label={paused ? 'Play' : 'Pause'}>
             {paused ? <Play className="size-6 fill-current" /> : <Pause className="size-6 fill-current" />}
           </button>
-          <button onClick={() => seek(time - 10)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Back 10 seconds"><RotateCcw className="size-5" /></button>
-          <button onClick={() => seek(time + 30)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Forward 30 seconds"><RotateCw className="size-5" /></button>
-          {next && <button onClick={() => onNext(next.id)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Next episode" title="Next episode (N)"><SkipForward className="size-5" /></button>}
+          <button onClick={() => seek(time - 10)} className="icon-btn !bg-transparent hover:!bg-white/10 pointer-coarse:hidden" aria-label="Back 10 seconds"><RotateCcw className="size-5" /></button>
+          <button onClick={() => seek(time + 30)} className="icon-btn !bg-transparent hover:!bg-white/10 pointer-coarse:hidden" aria-label="Forward 30 seconds"><RotateCw className="size-5" /></button>
+          {next && <button onClick={() => goNext(next.id)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Next episode" title="Next episode (N)"><SkipForward className="size-5" /></button>}
           <div className="hidden sm:flex items-center group/vol">
             <button onClick={() => setMuted((m) => !m)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Mute">
               {muted || volume === 0 ? <VolumeX className="size-5" /> : volume < 0.5 ? <Volume1 className="size-5" /> : <Volume2 className="size-5" />}
@@ -749,18 +906,18 @@ export default function Player({ itemId, startTime, onExit, onNext }: Props) {
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 md:gap-1 relative">
-            {subs.length > 0 && <CtrlBtn label="Subtitles (C)" active={menu === 'subs'} onClick={() => setMenu(menu === 'subs' ? null : 'subs')}><Subtitles className={`size-5 ${subIndex >= 0 ? 'text-violet-300' : ''}`} /></CtrlBtn>}
+            {subs.length > 0 && <CtrlBtn label="Subtitles (C)" active={menu === 'subs'} onClick={() => setMenu(menu === 'subs' ? null : 'subs')}><Subtitles className={`size-5 ${subIndex >= 0 ? 'text-accent' : ''}`} /></CtrlBtn>}
             <CtrlBtn label="Audio & quality" active={menu === 'quality'} onClick={() => setMenu(menu === 'quality' ? null : 'quality')}><Settings2 className="size-5" /></CtrlBtn>
             <CtrlBtn label="Speed" active={menu === 'speed'} onClick={() => setMenu(menu === 'speed' ? null : 'speed')}><Gauge className="size-5" /></CtrlBtn>
             <CtrlBtn label="Playback info" active={menu === 'info'} onClick={() => setMenu(menu === 'info' ? null : 'info')}><Info className="size-5" /></CtrlBtn>
-            {castState.available && <CtrlBtn label="Cast" onClick={startCast}><Cast className={`size-5 ${castState.connected ? 'text-violet-300' : ''}`} /></CtrlBtn>}
+            {castState.available && <CtrlBtn label="Cast" onClick={startCast}><Cast className={`size-5 ${castState.connected ? 'text-accent' : ''}`} /></CtrlBtn>}
             {'pictureInPictureEnabled' in document && document.pictureInPictureEnabled && (
               <CtrlBtn label="Picture in picture" onClick={() => { const pr = document.pictureInPictureElement ? document.exitPictureInPicture() : videoRef.current?.requestPictureInPicture(); pr?.catch(() => {}) }}><PictureInPicture2 className="size-5" /></CtrlBtn>
             )}
             <CtrlBtn label="Fullscreen (F)" onClick={toggleFullscreen}>{fullscreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />}</CtrlBtn>
 
             {menu && (
-              <div className="absolute bottom-14 right-0 w-[min(88vw,340px)] max-h-[60vh] overflow-y-auto card !bg-[#14141f]/95 backdrop-blur-xl p-2 shadow-2xl fade-in" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute bottom-14 right-0 w-[min(88vw,340px)] max-h-[60vh] overflow-y-auto rounded-2xl border border-line bg-surface/95 backdrop-blur-xl p-2 shadow-2xl fade-in" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center px-2 pb-1">
                   <span className="text-xs uppercase tracking-wide text-muted font-semibold">{{ subs: 'Subtitles', audio: 'Audio', quality: 'Audio & quality', speed: 'Playback speed', info: 'Playback info' }[menu]}</span>
                   <button className="ml-auto p-1 text-muted hover:text-white" onClick={() => setMenu(null)}><X className="size-4" /></button>
@@ -810,8 +967,8 @@ function CtrlBtn({ children, label, onClick, active }: { children: React.ReactNo
 
 function Opt({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 ${on ? 'bg-violet-500/20 text-white' : 'hover:bg-white/10 text-white/85'}`}>
-      <span className={`size-1.5 rounded-full shrink-0 ${on ? 'bg-violet-300' : 'bg-transparent'}`} />
+    <button onClick={onClick} className={`w-full text-left px-3 py-2.5 rounded-xl text-sm flex items-center gap-2 ${on ? 'bg-white/[.1] text-white' : 'hover:bg-white/[.06] text-white/85'}`}>
+      <span className={`size-1.5 rounded-full shrink-0 ${on ? 'bg-white' : 'bg-transparent'}`} />
       <span className="min-w-0">{children}</span>
     </button>
   )

@@ -12,6 +12,8 @@ import ItemPage from './pages/Item'
 import SearchPage from './pages/Search'
 import FavoritesPage from './pages/Favorites'
 import SettingsPage from './pages/Settings'
+import RequestsPage from './pages/Requests'
+import { Toaster } from './components/ui'
 import { UserContext } from './lib/user'
 
 const PlayerPage = lazy(() => import('./player/PlayerPage'))
@@ -45,11 +47,13 @@ export default function App() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/favorites" element={<FavoritesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/requests" element={<RequestsPage />} />
             <Route path="/admin/*" element={me.data.isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </Suspense>
+      <Toaster />
     </UserContext.Provider>
   )
 }

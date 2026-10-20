@@ -131,12 +131,17 @@ type credit struct {
 	Order       int    `json:"order"`
 }
 
+type tmdbImage struct {
+	FilePath string  `json:"file_path"`
+	Lang     string  `json:"iso_639_1"`
+	Vote     float64 `json:"vote_average"`
+	Votes    int     `json:"vote_count"`
+	Width    int     `json:"width"`
+}
+
 type imageList struct {
-	Logos []struct {
-		FilePath string  `json:"file_path"`
-		Lang     string  `json:"iso_639_1"`
-		Vote     float64 `json:"vote_average"`
-	} `json:"logos"`
+	Logos     []tmdbImage `json:"logos"`
+	Backdrops []tmdbImage `json:"backdrops"`
 }
 
 type genre struct {
@@ -253,6 +258,25 @@ func country(l string) string {
 		return l[i+1:]
 	}
 	return "US"
+}
+
+// bestBackdrop prefers a backdrop without text (no language), since the UI shows the
+// title logo on top of it; falls back to TMDB's default choice.
+func bestBackdrop(il imageList, fallback string) string {
+	best, bestScore := "", -1.0
+	for _, b := range il.Backdrops {
+		if b.Lang != "" || b.Width < 1280 {
+			continue
+		}
+		score := b.Vote + float64(min(b.Votes, 10))*0.1
+		if score > bestScore {
+			best, bestScore = b.FilePath, score
+		}
+	}
+	if best == "" {
+		return fallback
+	}
+	return best
 }
 
 // bestLogo picks the highest-voted logo in the preferred language, then English.

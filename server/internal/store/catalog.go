@@ -111,7 +111,8 @@ func (s *Store) UpsertMediaFile(m *MediaFile) error {
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, container=excluded.container, duration=excluded.duration,
 		  bitrate=excluded.bitrate, width=excluded.width, height=excluded.height, video_codec=excluded.video_codec, video_profile=excluded.video_profile,
-		  pix_fmt=excluded.pix_fmt, hdr=excluded.hdr, streams=excluded.streams, sidecars=excluded.sidecars, chapters=excluded.chapters, trickplay=0`,
+		  pix_fmt=excluded.pix_fmt, hdr=excluded.hdr, streams=excluded.streams, sidecars=excluded.sidecars, chapters=excluded.chapters, trickplay=0,
+		  credits_state=CASE WHEN media_files.mtime=excluded.mtime AND media_files.size=excluded.size THEN media_files.credits_state ELSE 0 END`,
 		m.ItemID, m.Path, m.Size, m.Mtime, m.Container, m.Duration, m.Bitrate, m.Width, m.Height, m.VideoCodec, m.VideoProfile, m.PixFmt, m.HDR,
 		encodeStreams(m.Streams), encodeStreams(m.Sidecars), mustJSON(m.Chapters))
 	return err
@@ -179,14 +180,14 @@ func (s *Store) MediaFileForItem(itemID int64) (*MediaFile, error) {
 	return scanMediaFile(s.DB.QueryRow(mediaCols+` WHERE item_id=? ORDER BY id LIMIT 1`, itemID))
 }
 
-const mediaCols = `SELECT id, item_id, path, size, mtime, container, duration, bitrate, width, height, video_codec, video_profile, pix_fmt, hdr, streams, sidecars, chapters, trickplay FROM media_files`
+const mediaCols = `SELECT id, item_id, path, size, mtime, container, duration, bitrate, width, height, video_codec, video_profile, pix_fmt, hdr, streams, sidecars, chapters, trickplay, credits_start, credits_end FROM media_files`
 
 func scanMediaFile(r interface{ Scan(...any) error }) (*MediaFile, error) {
 	var m MediaFile
 	var streams, sidecars, chapters string
 	var trick int
 	err := r.Scan(&m.ID, &m.ItemID, &m.Path, &m.Size, &m.Mtime, &m.Container, &m.Duration, &m.Bitrate, &m.Width, &m.Height,
-		&m.VideoCodec, &m.VideoProfile, &m.PixFmt, &m.HDR, &streams, &sidecars, &chapters, &trick)
+		&m.VideoCodec, &m.VideoProfile, &m.PixFmt, &m.HDR, &streams, &sidecars, &chapters, &trick, &m.CreditsStart, &m.CreditsEnd)
 	m.Trickplay = trick == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -225,6 +226,29 @@ func (s *Store) FilesNeedingTrickplay(limit int) ([]*MediaFile, error) {
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// FilesNeedingCredits lists media files whose end credits haven't been looked for yet.
+func (s *Store) FilesNeedingCredits(limit int) ([]*MediaFile, error) {
+	rows, err := s.DB.Query(mediaCols+` WHERE credits_state=0 AND duration > 600 ORDER BY id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*MediaFile
+	for rows.Next() {
+		m, err := scanMediaFile(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// SetCredits stores the analysis result; state 1 = done, -1 = failed.
+func (s *Store) SetCredits(fileID int64, start, end float64, state int) {
+	_, _ = s.DB.Exec(`UPDATE media_files SET credits_start=?, credits_end=?, credits_state=? WHERE id=?`, start, end, state, fileID)
 }
 
 // SetTrickplay records trickplay state: 1 = ready, -1 = failed.

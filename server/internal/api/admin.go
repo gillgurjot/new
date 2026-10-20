@@ -191,9 +191,11 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Disabled   bool    `json:"disabled"`
-		MaxBitrate int     `json:"maxBitrate"`
-		LibraryIDs []int64 `json:"libraryIds"`
+		Disabled    bool    `json:"disabled"`
+		MaxBitrate  int     `json:"maxBitrate"`
+		LibraryIDs  []int64 `json:"libraryIds"`
+		CanDownload *bool   `json:"canDownload"`
+		CanRequest  *bool   `json:"canRequest"`
 	}
 	if err := decode(r, &b); err != nil {
 		writeErr(w, 400, "bad request")
@@ -204,7 +206,20 @@ func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "you can't disable yourself")
 		return
 	}
-	if err := s.St.UpdateUserAdmin(id, b.Disabled, max(b.MaxBitrate, 0), b.LibraryIDs); err != nil {
+	cur, err := s.St.User(id)
+	if err != nil {
+		s.notFoundOr500(w, err)
+		return
+	}
+	f := store.UserAdminFields{Disabled: b.Disabled, MaxBitrate: max(b.MaxBitrate, 0), LibraryIDs: b.LibraryIDs,
+		CanDownload: cur.CanDownload, CanRequest: cur.CanRequest}
+	if b.CanDownload != nil {
+		f.CanDownload = *b.CanDownload
+	}
+	if b.CanRequest != nil {
+		f.CanRequest = *b.CanRequest
+	}
+	if err := s.St.UpdateUserAdmin(id, f); err != nil {
 		s.notFoundOr500(w, err)
 		return
 	}

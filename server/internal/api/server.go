@@ -18,6 +18,8 @@ import (
 	"github.com/gillgurjot/lumen/internal/jobs"
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
+	"github.com/gillgurjot/lumen/internal/party"
+	"github.com/gillgurjot/lumen/internal/seerr"
 	"github.com/gillgurjot/lumen/internal/store"
 	"github.com/gillgurjot/lumen/internal/stream"
 	"github.com/go-chi/chi/v5"
@@ -38,6 +40,8 @@ type Server struct {
 	Streams   *stream.Manager
 	Subs      *stream.Subtitles
 	Jobs      *jobs.Runner
+	Party     *party.Hub
+	Seerr     *seerr.Client // nil when not configured
 	Log       *slog.Logger
 	Web       fs.FS // built SPA
 	Ctx       context.Context
@@ -175,6 +179,7 @@ func (s *Server) Router() http.Handler {
 		r.With(compress).Get("/api/subtitles/{fileID}/{index}.vtt", s.subtitle)
 		r.Get("/api/images/{itemID}/{kind}", s.image)
 		r.Get("/api/person-image", s.personImage)
+		r.Get("/api/tmdb-image", s.tmdbImage)
 		r.Get("/api/trickplay/{fileID}/index.json", s.trickplayIndex)
 		r.Get("/api/trickplay/{fileID}/{sheet}.jpg", s.trickplaySheet)
 	})
@@ -200,6 +205,22 @@ func (s *Server) Router() http.Handler {
 		r.Post("/api/playback/start", s.playbackStart)
 		r.Post("/api/playback/progress", s.playbackProgress)
 		r.Post("/api/playback/stop", s.playbackStop)
+		r.Get("/api/items/{id}/download", s.download)
+
+		r.Post("/api/party", s.partyCreate)
+		r.Get("/api/party/{id}", s.partyGet)
+		r.Post("/api/party/{id}/state", s.partyState)
+		r.Post("/api/party/{id}/chat", s.partyChat)
+
+		r.Get("/api/requests/config", s.requestsConfig)
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireSeerr)
+			r.Get("/api/requests/search", s.requestsSearch)
+			r.Get("/api/requests/discover/{kind}", s.requestsDiscover)
+			r.Get("/api/requests/title/{type}/{tmdbID}", s.requestsDetails)
+			r.Get("/api/requests/recent", s.requestsRecent)
+			r.Post("/api/requests", s.requestsCreate)
+		})
 
 		r.Route("/api/admin", func(r chi.Router) {
 			r.Use(requireAdmin)
@@ -220,6 +241,9 @@ func (s *Server) Router() http.Handler {
 			r.Post("/items/{id}/refresh", s.adminRefreshItem)
 		})
 	})
+
+	// Long-lived event stream: no compression, which would buffer it.
+	r.With(s.requireUser).Get("/api/party/{id}/events", s.partyEvents)
 
 	r.NotFound(s.spa(compress))
 	return r

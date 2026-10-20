@@ -127,8 +127,16 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 			latest = append(latest, row{l, slim(items)})
 		}
 	}
+	favs, _ := s.St.Favorites(u, 60)
+	myList := []*store.Item{}
+	for _, it := range favs {
+		if (it.Type == "movie" || it.Type == "series") && len(myList) < 24 {
+			myList = append(myList, it)
+		}
+	}
 	writeJSON(w, 200, map[string]any{
 		"continueWatching": slim(cont), "nextUp": slim(next), "featured": slim(featured), "latest": latest, "libraries": libs,
+		"myList": slim(myList),
 	})
 }
 

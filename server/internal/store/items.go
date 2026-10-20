@@ -387,3 +387,30 @@ func (s *Store) SetFavorite(userID, itemID int64, fav bool) error {
 	_, err := s.DB.Exec(`UPDATE user_data SET favorite=? WHERE user_id=? AND item_id=?`, fav, userID, itemID)
 	return err
 }
+
+// ItemsByTMDB maps TMDB ids to library item ids the user can see. kind is "movie" or "series".
+func (s *Store) ItemsByTMDB(u *User, kind string, ids []int) (map[int]int64, error) {
+	out := map[int]int64{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	ph := make([]string, len(ids))
+	args := []any{kind}
+	for i, id := range ids {
+		ph[i] = "?"
+		args = append(args, id)
+	}
+	rows, err := s.DB.Query(`SELECT i.tmdb_id, i.id FROM items i WHERE i.type=? AND i.tmdb_id IN (`+strings.Join(ph, ",")+`) AND `+libFilter(u), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t int
+		var id int64
+		if rows.Scan(&t, &id) == nil {
+			out[t] = id
+		}
+	}
+	return out, rows.Err()
+}

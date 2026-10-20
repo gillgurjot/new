@@ -13,6 +13,8 @@ export interface User {
   subtitleMode: 'auto' | 'always' | 'off'
   createdAt: number
   lastLogin: number
+  canDownload: boolean
+  canRequest: boolean
 }
 
 export interface Library {
@@ -113,6 +115,8 @@ export interface MediaFile {
   sidecars: Stream[]
   chapters: Chapter[]
   trickplay: boolean
+  creditsStart?: number
+  creditsEnd?: number
 }
 
 export interface ItemDetail extends Item {
@@ -125,6 +129,7 @@ export interface HomeData {
   featured: Item[]
   latest: { library: Library; items: Item[] }[]
   libraries: Library[]
+  myList: Item[]
 }
 
 export interface DeviceProfile {
@@ -235,4 +240,86 @@ export interface SystemInfo {
   memoryMB: number
   publicUrl: string
   adminGroup: string
+}
+
+// ---- watch together ----
+
+export interface PartyState {
+  itemId: number
+  playing: boolean
+  position: number
+  at: number
+  by?: string
+  action?: 'play' | 'pause' | 'seek' | 'item'
+}
+
+export interface PartyMember {
+  userId: number
+  name: string
+  avatar?: string
+}
+
+export interface PartyMessage {
+  id: number
+  userId: number
+  name: string
+  avatar?: string
+  text?: string
+  emoji?: string
+  at: number
+  system?: boolean
+}
+
+export interface Party {
+  id: string
+  hostId: number
+  state: PartyState
+  members: PartyMember[]
+  chat: PartyMessage[]
+}
+
+// ---- requests (Seerr) ----
+
+export type RequestStatus = 'none' | 'pending' | 'processing' | 'partial' | 'available'
+
+export interface RequestTitle {
+  mediaType: 'movie' | 'tv'
+  tmdbId: number
+  title: string
+  year?: number
+  overview?: string
+  poster?: string
+  backdrop?: string
+  rating?: number
+  status: RequestStatus
+  itemId?: number
+}
+
+export interface RequestSeason {
+  seasonNumber: number
+  name: string
+  episodeCount: number
+  status: RequestStatus
+}
+
+export interface RequestDetails {
+  title: RequestTitle
+  genres: string[] | null
+  runtime: number
+  seasons?: RequestSeason[]
+}
+
+export interface RecentRequest {
+  id: number
+  status: 'pending' | 'approved' | 'declined' | 'failed' | 'available'
+  createdAt: string
+  requestedBy: string
+  seasons?: number[]
+  title: RequestTitle
+}
+
+export interface RequestsConfig {
+  enabled: boolean
+  canRequest: boolean
+  seerrUrl: string
 }

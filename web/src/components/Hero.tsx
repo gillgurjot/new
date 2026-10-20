@@ -1,66 +1,106 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Info, Play } from 'lucide-react'
 import { imageUrl } from '../api/client'
 import type { Item } from '../api/types'
-import { formatRuntime } from '../lib/format'
+import { formatRuntime, plural } from '../lib/format'
+import { Meta } from './ui'
 
-/** Rotating featured banner on the home page. */
+/** Rotating featured banner on the home page. Swipe on phones, dots everywhere. */
 export default function Hero({ items }: { items: Item[] }) {
   const [i, setI] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const touch = useRef<{ x: number; y: number } | null>(null)
+  const n = items.length
+
   useEffect(() => {
-    if (items.length < 2) return
-    const t = setInterval(() => setI((x) => (x + 1) % items.length), 9000)
+    if (n < 2 || paused) return
+    const t = setInterval(() => {
+      if (!document.hidden) setI((x) => (x + 1) % n)
+    }, 8000)
     return () => clearInterval(t)
-  }, [items.length])
-  if (!items.length) return null
+  }, [n, paused, i])
+
+  if (!n) return null
   const it = items[i]
-  const logo = imageUrl(it, 'logo', 500)
+  const logo = imageUrl(it, 'logo', 420)
+  const go = (d: number) => setI((x) => (x + d + n) % n)
+
   return (
-    <div className="relative h-[72vh] min-h-[460px] max-h-[820px] overflow-hidden">
-      {items.map((x, idx) => (
-        <img
-          key={x.id}
-          src={imageUrl(x, 'backdrop', 1920)}
-          alt=""
-          className={`absolute inset-0 size-full object-cover transition-opacity duration-1000 ${idx === i ? 'opacity-100' : 'opacity-0'}`}
-          fetchPriority={idx === 0 ? 'high' : 'low'}
-        />
-      ))}
-      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/30 to-transparent" />
-      <div key={it.id} className="absolute bottom-[12%] left-4 md:left-10 right-4 max-w-2xl fade-in">
-        {logo ? (
-          <img src={logo} alt={it.title} className="max-h-28 md:max-h-36 max-w-[70%] object-contain object-left mb-4 drop-shadow-2xl" />
-        ) : (
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-3 drop-shadow-xl">{it.title}</h1>
-        )}
-        <div className="flex flex-wrap items-center gap-2 text-sm text-white/80 mb-3">
-          {it.year ? <span>{it.year}</span> : null}
-          {it.contentRating && <span className="chip">{it.contentRating}</span>}
-          {it.runtime && it.type === 'movie' ? <span>{formatRuntime(it.runtime)}</span> : null}
-          {it.type === 'series' && it.childCount ? <span>{it.childCount} seasons</span> : null}
-          {it.genres.slice(0, 3).map((g) => (
-            <span key={g} className="text-white/60">· {g}</span>
-          ))}
-        </div>
-        <p className="text-white/80 line-clamp-3 mb-6 text-sm md:text-base max-w-xl">{it.overview}</p>
-        <div className="flex gap-3">
-          <Link to={it.type === 'movie' ? `/play/${it.id}` : `/item/${it.id}`} className="btn-primary">
-            <Play className="size-5 fill-current" /> {it.type === 'movie' ? 'Play' : 'Watch'}
-          </Link>
-          <Link to={`/item/${it.id}`} className="btn-ghost">
-            <Info className="size-5" /> More info
-          </Link>
-        </div>
+    <section
+      className="relative overflow-hidden"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
+      onTouchEnd={(e) => {
+        const s = touch.current
+        touch.current = null
+        if (!s) return
+        const dx = e.changedTouches[0].clientX - s.x
+        const dy = e.changedTouches[0].clientY - s.y
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1)
+      }}
+      aria-roledescription="carousel"
+    >
+      {/* Artwork */}
+      <div className="absolute inset-0">
+        {items.map((x, idx) => (
+          <img
+            key={x.id}
+            src={imageUrl(x, 'backdrop', 1600)}
+            alt=""
+            className={`absolute inset-0 size-full object-cover object-[center_20%] transition-opacity duration-1000 ${idx === i ? 'opacity-100' : 'opacity-0'}`}
+            fetchPriority={idx === 0 ? 'high' : 'low'}
+            loading={idx === 0 ? 'eager' : 'lazy'}
+          />
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/75 via-35% to-bg/10" />
+        <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-bg/90 via-bg/40 via-45% to-transparent" />
       </div>
-      {items.length > 1 && (
-        <div className="absolute bottom-6 right-4 md:right-10 flex gap-1.5">
-          {items.map((x, idx) => (
-            <button key={x.id} onClick={() => setI(idx)} className={`h-1.5 rounded-full transition-all ${idx === i ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} aria-label={`Show ${x.title}`} />
-          ))}
+
+      {/* Content: in normal flow so it never overlaps the rows below */}
+      <div className="relative flex flex-col justify-end min-h-[min(78svh,680px)] md:min-h-[min(82vh,780px)] px-4 md:px-10 pt-24 pb-8 md:pb-14">
+        <div key={it.id} className="max-w-xl fade-in">
+          {logo ? (
+            <img src={logo} alt={it.title} className="max-h-24 md:max-h-36 max-w-[78%] md:max-w-[70%] object-contain object-left mb-5 drop-shadow-[0_4px_24px_rgba(0,0,0,.6)]" />
+          ) : (
+            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05] mb-4 drop-shadow-xl">{it.title}</h1>
+          )}
+          <Meta
+            className="text-[13px] md:text-sm text-white/75 font-medium mb-3"
+            parts={[
+              it.year || null,
+              it.contentRating ? <span className="chip">{it.contentRating}</span> : null,
+              it.type === 'movie' && it.runtime ? formatRuntime(it.runtime) : null,
+              it.type === 'series' && it.childCount ? plural(it.childCount, 'season') : null,
+              it.genres.slice(0, 2).join(', ') || null,
+            ]}
+          />
+          {it.overview && <p className="text-[15px] leading-relaxed text-white/75 line-clamp-2 md:line-clamp-3 mb-6">{it.overview}</p>}
+          <div className="flex items-center gap-3">
+            <Link to={it.type === 'movie' ? `/play/${it.id}` : `/item/${it.id}`} className="btn-primary !h-12 !px-7 flex-1 sm:flex-none">
+              <Play className="size-5 fill-current" /> {it.type === 'movie' ? 'Play' : 'Watch'}
+            </Link>
+            <Link to={`/item/${it.id}`} className="btn-ghost !h-12 !px-6 flex-1 sm:flex-none">
+              <Info className="size-5" /> Details
+            </Link>
+          </div>
         </div>
-      )}
-    </div>
+        {n > 1 && (
+          <div className="flex gap-1.5 mt-7 justify-center md:justify-start" role="tablist">
+            {items.map((x, idx) => (
+              <button
+                key={x.id}
+                onClick={() => setI(idx)}
+                role="tab"
+                aria-selected={idx === i}
+                aria-label={`Show ${x.title}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${idx === i ? 'w-6 bg-white' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }

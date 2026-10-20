@@ -6,7 +6,7 @@ export default function Img({ src, alt, className = '', fallback }: { src?: stri
   const [failed, setFailed] = useState(false)
   if (!src || failed) {
     return (
-      <div className={`${className} bg-gradient-to-br from-surface-2 to-[#251a3a] grid place-items-center p-3 text-center`}>
+      <div className={`${className} bg-gradient-to-br from-surface-2 to-surface-3 grid place-items-center p-3 text-center`}>
         {fallback ?? <span className="text-sm font-semibold text-white/70 line-clamp-3">{alt}</span>}
       </div>
     )

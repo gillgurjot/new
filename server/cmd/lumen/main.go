@@ -22,6 +22,8 @@ import (
 	"github.com/gillgurjot/lumen/internal/jobs"
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
+	"github.com/gillgurjot/lumen/internal/party"
+	"github.com/gillgurjot/lumen/internal/seerr"
 	"github.com/gillgurjot/lumen/internal/store"
 	"github.com/gillgurjot/lumen/internal/stream"
 	"github.com/gillgurjot/lumen/web"
@@ -75,16 +77,21 @@ func main() {
 	streams := stream.NewManager(cfg.FFmpeg, cfg.TranscodeDir, caps, cfg.MaxTranscodes, log)
 	runner := &jobs.Runner{St: st, Scanner: scanner, Fetcher: fetcher, Streams: streams, FFmpeg: cfg.FFmpeg,
 		TrickplayDir: filepath.Join(cfg.ConfigDir, "trickplay"), Trickplay: os.Getenv("LUMEN_TRICKPLAY") != "false",
+		Credits:      os.Getenv("LUMEN_CREDITS_DETECTION") != "false",
 		ScanInterval: cfg.ScanInterval, Log: log}
 
 	srv := &api.Server{Cfg: cfg, St: st, Auth: auth.New(cfg, st, log), Images: img, Scanner: scanner, Watcher: watcher,
 		Fetcher: fetcher, TMDB: tmdb, Streams: streams, Subs: stream.NewSubtitles(cfg.FFmpeg, filepath.Join(cfg.ConfigDir, "cache")),
-		Jobs: runner, Log: log, Web: web.FS(), Ctx: ctx, StartedAt: time.Now()}
+		Jobs: runner, Log: log, Web: web.FS(), Ctx: ctx, StartedAt: time.Now(), Party: party.NewHub(), Seerr: seerr.New(cfg.SeerrURL, cfg.SeerrAPIKey)}
+	if srv.Seerr.Enabled() {
+		log.Info("requests enabled through Seerr", "url", cfg.SeerrURL)
+	}
 	if srv.Web == nil {
 		log.Warn("web UI not embedded; build it with `npm run build` in web/")
 	}
 
 	go streams.Run(ctx)
+	go srv.Party.Run(ctx)
 	runner.Start(ctx)
 	watcher.Start(ctx)
 
