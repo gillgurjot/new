@@ -127,6 +127,20 @@ func (f *Fetcher) download(ctx context.Context, id int64, kind, size, path strin
 	return ref
 }
 
+// backdrop picks a text-free TMDB backdrop when there is one (even over local fanart,
+// which often has the title on it), else keeps local art, else TMDB's default.
+func (f *Fetcher) backdrop(ctx context.Context, it *store.Item, il imageList, def string) string {
+	if p := textlessBackdrop(il); p != "" {
+		if ref := f.download(ctx, it.ID, "backdrop", "w1280", p); ref != "" {
+			return ref
+		}
+	}
+	if strings.HasPrefix(it.Backdrop, "/") {
+		return "" // keep the local file
+	}
+	return f.download(ctx, it.ID, "backdrop", "w1280", def)
+}
+
 // pickMatch prefers an exact title + year match, then year, then the first result.
 func pickMatch(res []SearchResult, title string, yr int) *SearchResult {
 	if len(res) == 0 {
@@ -203,9 +217,7 @@ func (f *Fetcher) movie(ctx context.Context, it *store.Item) {
 	if !strings.HasPrefix(it.Poster, "/") { // keep local artwork
 		m.Poster = f.download(ctx, it.ID, "poster", "w780", d.PosterPath)
 	}
-	if !strings.HasPrefix(it.Backdrop, "/") {
-		m.Backdrop = f.download(ctx, it.ID, "backdrop", "w1280", bestBackdrop(d.Images, d.BackdropPath))
-	}
+	m.Backdrop = f.backdrop(ctx, it, d.Images, d.BackdropPath)
 	if !strings.HasPrefix(it.Logo, "/") {
 		m.Logo = f.download(ctx, it.ID, "logo", "w500", bestLogo(d.Images, f.lang))
 	}
@@ -253,9 +265,7 @@ func (f *Fetcher) series(ctx context.Context, it *store.Item) {
 	if !strings.HasPrefix(it.Poster, "/") {
 		m.Poster = f.download(ctx, it.ID, "poster", "w780", d.PosterPath)
 	}
-	if !strings.HasPrefix(it.Backdrop, "/") {
-		m.Backdrop = f.download(ctx, it.ID, "backdrop", "w1280", bestBackdrop(d.Images, d.BackdropPath))
-	}
+	m.Backdrop = f.backdrop(ctx, it, d.Images, d.BackdropPath)
 	if !strings.HasPrefix(it.Logo, "/") {
 		m.Logo = f.download(ctx, it.ID, "logo", "w500", bestLogo(d.Images, f.lang))
 	}

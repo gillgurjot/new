@@ -5,7 +5,7 @@ One Go binary with the web app built in, SQLite for storage, ffmpeg for streamin
 
 ## Features
 
-- **Movies and TV shows**: automatic scanning, live folder watching, TMDB posters, backdrops, logos, cast, ratings and episode info. Local artwork (`poster.jpg`, `fanart.jpg`, `*-thumb.jpg`) is used when present.
+- **Movies and TV shows**: automatic scanning, live folder watching, TMDB posters, backdrops, logos, cast, ratings and episode info. Local artwork (`poster.jpg`, `fanart.jpg`, `*-thumb.jpg`) is used when present, except that a text-free TMDB backdrop is preferred over local fanart, since the title logo is drawn on top.
 - **Device-first playback**: each browser reports what it can decode (codecs, HDR, screen size, slow connections). Lumen then picks the cheapest option:
   1. **Direct play**: the original file, untouched.
   2. **Direct stream**: video copied as is, only the container (and audio, if needed) converted.

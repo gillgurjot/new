@@ -260,9 +260,9 @@ func country(l string) string {
 	return "US"
 }
 
-// bestBackdrop prefers a backdrop without text (no language), since the UI shows the
-// title logo on top of it; falls back to TMDB's default choice.
-func bestBackdrop(il imageList, fallback string) string {
+// textlessBackdrop returns the best-voted backdrop without text (no language), or "".
+// The UI draws the title logo on top, so artwork with the title baked in looks doubled.
+func textlessBackdrop(il imageList) string {
 	best, bestScore := "", -1.0
 	for _, b := range il.Backdrops {
 		if b.Lang != "" || b.Width < 1280 {
@@ -272,9 +272,6 @@ func bestBackdrop(il imageList, fallback string) string {
 		if score > bestScore {
 			best, bestScore = b.FilePath, score
 		}
-	}
-	if best == "" {
-		return fallback
 	}
 	return best
 }
