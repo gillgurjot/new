@@ -88,7 +88,7 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
   return (
     <div className="pb-16">
       {/* Artwork */}
-      <div className="relative h-[52svh] md:h-auto md:absolute md:inset-x-0 md:top-0 md:h-[80vh] overflow-hidden">
+      <div className="relative h-[52svh] md:absolute md:inset-x-0 md:top-0 md:h-[80vh] overflow-hidden">
         {backdrop && <img src={backdrop} alt="" className="absolute inset-0 size-full object-cover object-[center_25%] md:opacity-70" />}
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent md:via-bg/70 md:to-bg/20" />
         <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-bg via-bg/50 to-transparent" />

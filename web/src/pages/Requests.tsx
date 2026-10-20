@@ -242,19 +242,19 @@ function RequestSheet({ title, onClose, canRequest, seerrUrl }: { title: Request
 
       <div className="flex flex-col sm:flex-row gap-2.5 mt-6">
         {t.itemId ? (
-          <Link to={`/item/${t.itemId}`} onClick={onClose} className="btn-primary !h-12 flex-1"><Play className="size-5 fill-current" /> Watch now</Link>
+          <Link to={`/item/${t.itemId}`} onClick={onClose} className="btn-primary !h-12 w-full sm:w-auto sm:flex-1"><Play className="size-5 fill-current" /> Watch now</Link>
         ) : null}
         {canAsk ? (
-          <button onClick={send} disabled={busy || d.isLoading} className={`${t.itemId ? 'btn-ghost' : 'btn-accent'} !h-12 flex-1`}>
+          <button onClick={send} disabled={busy || d.isLoading} className={`${t.itemId ? 'btn-ghost' : 'btn-accent'} !h-12 w-full sm:w-auto sm:flex-1`}>
             {busy ? <Spinner className="size-5" /> : <><Plus className="size-5" /> {requestLabel}</>}
           </button>
         ) : !t.itemId && t.status !== 'none' ? (
-          <div className="flex-1 h-12 rounded-full bg-white/[.06] grid place-items-center text-sm text-white/70">
+          <div className="w-full sm:flex-1 min-h-12 px-4 py-2 rounded-full bg-white/[.06] grid place-items-center text-center text-sm text-white/70">
             {t.status === 'pending' ? 'Requested — waiting for approval' : t.status === 'processing' ? 'Requested — downloading' : t.status === 'available' ? 'Available — the library will update shortly' : 'Partly available'}
           </div>
         ) : null}
         {seerrUrl && (
-          <a href={`${seerrUrl}/${t.mediaType}/${t.tmdbId}`} target="_blank" rel="noreferrer" className="btn-ghost !h-12 sm:!px-5" title="Open in Seerr"><ExternalLink className="size-4" /><span className="sm:hidden">Open in Seerr</span></a>
+          <a href={`${seerrUrl}/${t.mediaType}/${t.tmdbId}`} target="_blank" rel="noreferrer" className="btn-ghost !h-12 w-full sm:w-auto sm:!px-5" title="Open in Seerr"><ExternalLink className="size-4" /><span className="sm:hidden">Open in Seerr</span></a>
         )}
       </div>
     </Sheet>

@@ -279,6 +279,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
     const onPlay = () => setPaused(false)
     const onPause = () => {
       setPaused(true)
+      setWaiting(false)
       report()
     }
     const onWaiting = () => setWaiting(true)
@@ -287,7 +288,10 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
       setLoading(false)
       retries.current = 0
     }
-    const onCanPlay = () => setLoading(false)
+    const onCanPlay = () => {
+      setLoading(false)
+      if (v.paused) setWaiting(false)
+    }
     const onEnded = async () => {
       await report()
       if (next && loadPrefs().autoplayNext) goNext(next.id)
@@ -595,7 +599,8 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
     seenVersion.current = party.stateVersion
     const target = partyPosition(st, party.offset)
     // While the stream is still starting, wait: this effect runs again once it's playing.
-    if (!loading && Math.abs(nowAbs() - target) > 1.5) seek(target, false)
+    // Playing: small drift is fine. Paused: line up exactly (a local seek, cheap).
+    if (!loading && Math.abs(nowAbs() - target) > (st.playing ? 1.5 : 0.3)) seek(target, false)
     if (st.playing && v.paused) {
       v.play().then(() => setNeedTap(false)).catch(() => setNeedTap(true))
     } else if (!st.playing && !v.paused) {
@@ -827,7 +832,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
           <div className="font-semibold text-[17px] truncate">{item?.seriesTitle || item?.title}</div>
           {item?.seriesTitle && <div className="text-sm text-white/65 truncate">{episodeLabel(item)} · {item.title}</div>}
         </div>
-        {party ? (
+        {party ? (!partyOpen &&
           <button onClick={(e) => { e.stopPropagation(); setPartyOpen((o) => !o) }} className={`btn-ghost !h-11 !px-4 ${partyOpen ? '!bg-white !text-black' : ''}`} aria-label="Watch together">
             <Users className="size-5" /> <span className="tabular-nums">{party.members.length || 1}</span>
           </button>
