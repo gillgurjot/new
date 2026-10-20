@@ -66,7 +66,7 @@ export default function Layout() {
   return (
     <div className="min-h-dvh pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">
       <header
-        className={`fixed top-0 inset-x-0 z-40 transition-[background-color,border-color,backdrop-filter] duration-300 border-b ${scrolled ? 'bg-bg/80 backdrop-blur-xl border-line' : 'bg-gradient-to-b from-black/60 to-transparent border-transparent'}`}
+        className={`fixed top-0 inset-x-0 z-40 transition-[background-color,border-color,backdrop-filter] duration-300 border-b ${scrolled ? 'bg-bg/92 backdrop-blur-xl border-line' : 'bg-gradient-to-b from-black/60 to-transparent border-transparent'}`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="flex items-center gap-6 h-14 md:h-16 px-4 md:px-10">
@@ -110,7 +110,7 @@ export default function Layout() {
       </main>
 
       {/* Phone tab bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bg/85 backdrop-blur-xl border-t border-line pb-safe">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bg/95 backdrop-blur-xl border-t border-line pb-safe">
         <div className="grid grid-cols-5 h-[4.25rem]">
           <Tab to="/" icon={<Home />} label="Home" end />
           {(libs.data || []).slice(0, 2).map((l) => (

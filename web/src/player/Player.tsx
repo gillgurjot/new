@@ -839,7 +839,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
       </div>
 
       {party && <PartyOverlay party={party} open={partyOpen} />}
-      {party && partyOpen && item && <PartyPanel party={party} itemId={item.id} onClose={() => setPartyOpen(false)} onLeave={() => { setPartyOpen(false); onLeaveParty?.() }} />}
+      {party && partyOpen && <PartyPanel party={party} itemId={itemId} onClose={() => setPartyOpen(false)} onLeave={() => { setPartyOpen(false); onLeaveParty?.() }} />}
 
       {/* Centre controls on touch screens */}
       <div className={`absolute inset-0 hidden pointer-coarse:flex items-center justify-center gap-10 pointer-events-none transition-opacity duration-300 ${controls && !loading && !waiting && !error && !casting && !needTap ? 'opacity-100' : 'opacity-0'}`}>
@@ -899,7 +899,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
             <button onClick={() => setMuted((m) => !m)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Mute">
               {muted || volume === 0 ? <VolumeX className="size-5" /> : volume < 0.5 ? <Volume1 className="size-5" /> : <Volume2 className="size-5" />}
             </button>
-            <input type="range" min={0} max={1} step={0.02} value={muted ? 0 : volume} onChange={(e) => { setVolume(+e.target.value); setMuted(false) }} className="range w-0 group-hover/vol:w-24 transition-all" aria-label="Volume" />
+            <input type="range" min={0} max={1} step={0.02} value={muted ? 0 : volume} onChange={(e) => { setVolume(+e.target.value); setMuted(false) }} className="range w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 transition-all" aria-label="Volume" />
           </div>
           <div className="text-sm tabular-nums text-white/90 ml-1 md:ml-2 whitespace-nowrap">
             {formatTime(time)} <span className="text-white/50">/ {formatTime(duration)}</span>

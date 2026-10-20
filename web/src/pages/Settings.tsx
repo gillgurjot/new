@@ -53,9 +53,9 @@ export default function SettingsPage() {
             {languages.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </Field>
-        <Field label="Subtitles">
+        <Field label="Subtitles" hint="Automatic shows forced subtitles, and full subtitles when the audio isn’t in your language.">
           <select className="select" value={user.subtitleMode} onChange={(e) => saveServer({ subtitleMode: e.target.value as User['subtitleMode'] })}>
-            <option value="auto">Automatic — forced subtitles, or when audio isn't in my language</option>
+            <option value="auto">Automatic</option>
             <option value="always">Always on</option>
             <option value="off">Off</option>
           </select>

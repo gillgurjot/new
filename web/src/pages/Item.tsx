@@ -140,12 +140,12 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
                 <ActionBtn label="Start over" onClick={() => nav(`/play/${playTarget.id}?t=0`)}><RotateCcw className="size-5" /></ActionBtn>
               )}
               {playTarget && (
-                <ActionBtn label="Watch together" onClick={() => startParty(nav, playTarget.id, resumePos > 30 ? resumePos : 0)}><Users className="size-5" /></ActionBtn>
+                <ActionBtn label="Together" title="Watch together" onClick={() => startParty(nav, playTarget.id, resumePos > 30 ? resumePos : 0)}><Users className="size-5" /></ActionBtn>
               )}
-              <ActionBtn label={ud?.favorite ? 'In My list' : 'My list'} on={ud?.favorite} onClick={() => toggle('favorite', !ud?.favorite)}>
+              <ActionBtn label="My list" title={ud?.favorite ? 'Remove from My list' : 'Add to My list'} on={ud?.favorite} onClick={() => toggle('favorite', !ud?.favorite)}>
                 {ud?.favorite ? <Check className="size-5" /> : <Plus className="size-5" />}
               </ActionBtn>
-              <ActionBtn label={ud?.played ? 'Watched' : 'Mark watched'} on={ud?.played} onClick={() => toggle('played', !ud?.played)}>
+              <ActionBtn label="Watched" title={ud?.played ? 'Mark as unwatched' : 'Mark as watched'} on={ud?.played} onClick={() => toggle('played', !ud?.played)}>
                 <Check className="size-5" />
               </ActionBtn>
               {isPlayable && user.canDownload && item.media && (
@@ -201,9 +201,9 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
   )
 }
 
-function ActionBtn({ label, onClick, on, children }: { label: string; onClick: () => void; on?: boolean; children: React.ReactNode }) {
+function ActionBtn({ label, title, onClick, on, children }: { label: string; title?: string; onClick: () => void; on?: boolean; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className="group flex flex-col items-center gap-1.5 w-16" title={label}>
+    <button onClick={onClick} className="group flex flex-col items-center gap-1.5 w-16" title={title || label} aria-label={title || label} aria-pressed={on}>
       <span className={`icon-btn !size-11 ${on ? '!bg-white !text-black' : ''}`}>{children}</span>
       <span className="text-[11px] text-muted group-hover:text-white transition truncate max-w-full">{label}</span>
     </button>

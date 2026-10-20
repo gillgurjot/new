@@ -29,6 +29,10 @@ func (s *Server) partyErr(w http.ResponseWriter, err error) {
 		writeErr(w, 404, "This watch party has ended.")
 		return
 	}
+	if errors.Is(err, party.ErrNotMember) {
+		writeErr(w, 403, "Join the watch party first.")
+		return
+	}
 	writeErr(w, 400, err.Error())
 }
 

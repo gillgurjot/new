@@ -14,6 +14,9 @@ import (
 
 var ErrNotFound = errors.New("watch party not found")
 
+// ErrNotMember means the caller hasn't opened the party yet.
+var ErrNotMember = errors.New("join the watch party first")
+
 // leaveGrace is how long a member may be disconnected before others see them leave.
 var leaveGrace = 8 * time.Second
 
@@ -215,7 +218,7 @@ func (h *Hub) Update(id string, by Member, action string, position float64, item
 		return State{}, ErrNotFound
 	}
 	if _, ok := r.members[by.UserID]; !ok {
-		return State{}, ErrNotFound
+		return State{}, ErrNotMember
 	}
 	s := r.state
 	switch action {
@@ -255,7 +258,7 @@ func (h *Hub) Say(id string, by Member, text, emoji string) error {
 		return ErrNotFound
 	}
 	if _, ok := r.members[by.UserID]; !ok {
-		return ErrNotFound
+		return ErrNotMember
 	}
 	r.addChat(Message{UserID: by.UserID, Name: by.Name, Avatar: by.Avatar, Text: text, Emoji: emoji})
 	return nil
