@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gillgurjot/lumen/internal/auth"
 	"github.com/gillgurjot/lumen/internal/store"
 	"github.com/gillgurjot/lumen/internal/stream"
 	"github.com/go-chi/chi/v5"
@@ -368,6 +370,11 @@ func (s *Server) hlsPlaylist(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "playlist not ready", 404)
 		return
+	}
+	if auth.FromApp(r) {
+		// The playlist grows while ffmpeg works (an EVENT playlist). Native players treat that
+		// like live TV and jump to the newest segment; this tag makes them start at the top.
+		b = bytes.Replace(b, []byte("#EXTM3U\n"), []byte("#EXTM3U\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n"), 1)
 	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")

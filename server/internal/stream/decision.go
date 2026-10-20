@@ -22,6 +22,8 @@ type DeviceProfile struct {
 	MaxBitrate       int      `json:"maxBitrate"` // kbps, 0 = unknown
 	HDR              bool     `json:"hdr"`
 	MaxAudioChannels int      `json:"maxAudioChannels"`
+	// MultiAudio: the player can switch between a file's audio tracks itself (native apps).
+	MultiAudio bool `json:"multiAudio"`
 }
 
 type Request struct {
@@ -151,7 +153,7 @@ func Decide(m *store.MediaFile, p DeviceProfile, r Request, userMaxKbps int, pre
 	vOK, vReason := videoSupported(m, p)
 	aOK := audioSupported(d.Audio, p)
 	firstAudio := true
-	if aud := m.AudioStreams(); d.Audio != nil && len(aud) > 0 && aud[0].Index != d.Audio.Index {
+	if aud := m.AudioStreams(); !p.MultiAudio && d.Audio != nil && len(aud) > 0 && aud[0].Index != d.Audio.Index {
 		firstAudio = false // browsers can only play the first audio track of a file
 	}
 	containerOK := has(p.Containers, m.Container)

@@ -162,6 +162,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/login", s.Auth.Login)
 		r.Get("/callback", s.Auth.Callback)
 		r.Get("/dev-login", s.Auth.DevLogin)
+		r.Post("/app-token", s.Auth.AppToken)
 		r.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 200, map[string]string{"redirect": s.Auth.Logout(w, r)})
 		})
