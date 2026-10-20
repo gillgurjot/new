@@ -169,6 +169,7 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
           {item.tagline && <p className="italic text-white/60 mb-2">{item.tagline}</p>}
           <Overview text={item.overview} />
           {item.genres.length > 0 && <div className="text-sm text-muted mt-4">{item.genres.join(' · ')}</div>}
+          {item.media && <AudioLine item={item} />}
           {directors.length > 0 && (
             <div className="text-sm text-muted mt-1.5">
               {directors[0].role === 'creator' ? 'Created by ' : 'Directed by '}
@@ -197,6 +198,21 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
         )}
         {item.media && <MediaInfo item={item} />}
       </div>
+    </div>
+  )
+}
+
+const langNames: Record<string, string> = { eng: 'English', hin: 'Hindi', pan: 'Punjabi', spa: 'Spanish', fre: 'French', fra: 'French', ger: 'German', deu: 'German', ita: 'Italian', jpn: 'Japanese', kor: 'Korean', tam: 'Tamil', tel: 'Telugu', urd: 'Urdu', chi: 'Chinese', zho: 'Chinese', rus: 'Russian', por: 'Portuguese', ara: 'Arabic' }
+
+/** "Audio: Hindi 5.1 · English Stereo" — shows there's a choice before pressing play. */
+function AudioLine({ item }: { item: ItemDetail }) {
+  const audio = item.media!.streams.filter((s) => s.type === 'audio')
+  if (audio.length < 2) return null
+  const ch = (n?: number) => (n === 6 ? '5.1' : n === 8 ? '7.1' : n === 2 ? 'Stereo' : n === 1 ? 'Mono' : n ? `${n}ch` : '')
+  return (
+    <div className="text-sm text-muted mt-1.5">
+      Audio: <span className="text-white/85">{audio.map((a) => [langNames[a.language || ''] || (a.language || 'Unknown').toUpperCase(), ch(a.channels)].filter(Boolean).join(' ')).join(' · ')}</span>
+      <span className="text-muted"> — change it in the player</span>
     </div>
   )
 }

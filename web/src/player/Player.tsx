@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Hls from 'hls.js/light'
 import {
-  ArrowLeft, Cast, Gauge, Info, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, RotateCw, Settings2, SkipForward,
+  ArrowLeft, AudioLines, Cast, Gauge, Info, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, RotateCw, Settings2, SkipForward,
   Subtitles, Users, Volume1, Volume2, VolumeX, X,
 } from 'lucide-react'
 import { ApiError, api, landscapeUrl, post } from '../api/client'
@@ -483,6 +483,15 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
           showFlash(nextSub < 0 ? 'Subtitles off' : subs[i + 1].label)
           break
         }
+        case 'a': {
+          const list = info?.audioTracks || []
+          if (list.length < 2) break
+          const i = list.findIndex((x) => x.index === info?.audioIndex)
+          const n = list[(i + 1) % list.length]
+          showFlash(n.label, 1500)
+          chooseAudio(n.index)
+          break
+        }
         case 'n':
           if (next) goNext(next.id)
           break
@@ -912,9 +921,10 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
 
           <div className="ml-auto flex items-center gap-0.5 md:gap-1 relative">
             {subs.length > 0 && <CtrlBtn label="Subtitles (C)" active={menu === 'subs'} onClick={() => setMenu(menu === 'subs' ? null : 'subs')}><Subtitles className={`size-5 ${subIndex >= 0 ? 'text-accent' : ''}`} /></CtrlBtn>}
-            <CtrlBtn label="Audio & quality" active={menu === 'quality'} onClick={() => setMenu(menu === 'quality' ? null : 'quality')}><Settings2 className="size-5" /></CtrlBtn>
+            {audios.length > 0 && <CtrlBtn label="Audio (A)" active={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}><AudioLines className={`size-5 ${audios.length > 1 ? 'text-accent' : ''}`} /></CtrlBtn>}
+            <CtrlBtn label="Quality" active={menu === 'quality'} onClick={() => setMenu(menu === 'quality' ? null : 'quality')}><Settings2 className="size-5" /></CtrlBtn>
             <CtrlBtn label="Speed" active={menu === 'speed'} onClick={() => setMenu(menu === 'speed' ? null : 'speed')}><Gauge className="size-5" /></CtrlBtn>
-            <CtrlBtn label="Playback info" active={menu === 'info'} onClick={() => setMenu(menu === 'info' ? null : 'info')}><Info className="size-5" /></CtrlBtn>
+            <span className="hidden sm:contents"><CtrlBtn label="Playback info" active={menu === 'info'} onClick={() => setMenu(menu === 'info' ? null : 'info')}><Info className="size-5" /></CtrlBtn></span>
             {castState.available && <CtrlBtn label="Cast" onClick={startCast}><Cast className={`size-5 ${castState.connected ? 'text-accent' : ''}`} /></CtrlBtn>}
             {'pictureInPictureEnabled' in document && document.pictureInPictureEnabled && (
               <CtrlBtn label="Picture in picture" onClick={() => { const pr = document.pictureInPictureElement ? document.exitPictureInPicture() : videoRef.current?.requestPictureInPicture(); pr?.catch(() => {}) }}><PictureInPicture2 className="size-5" /></CtrlBtn>
@@ -924,7 +934,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
             {menu && (
               <div className="absolute bottom-14 right-0 w-[min(88vw,340px)] max-h-[60vh] overflow-y-auto rounded-2xl border border-line bg-surface/95 backdrop-blur-xl p-2 shadow-2xl fade-in" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center px-2 pb-1">
-                  <span className="text-xs uppercase tracking-wide text-muted font-semibold">{{ subs: 'Subtitles', audio: 'Audio', quality: 'Audio & quality', speed: 'Playback speed', info: 'Playback info' }[menu]}</span>
+                  <span className="text-xs uppercase tracking-wide text-muted font-semibold">{{ subs: 'Subtitles', audio: 'Audio', quality: 'Quality', speed: 'Playback speed', info: 'Playback info' }[menu]}</span>
                   <button className="ml-auto p-1 text-muted hover:text-white" onClick={() => setMenu(null)}><X className="size-4" /></button>
                 </div>
                 {menu === 'subs' && (
@@ -937,15 +947,14 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
                     ))}
                   </>
                 )}
+                {menu === 'audio' && (
+                  <>
+                    {audios.map((a) => <Opt key={a.index} on={info?.audioIndex === a.index} onClick={() => info?.audioIndex !== a.index ? chooseAudio(a.index) : setMenu(null)}>{a.label}</Opt>)}
+                    {audios.length === 1 && <div className="px-3 pt-2 pb-1 text-xs text-muted">This file has only one audio track.</div>}
+                  </>
+                )}
                 {menu === 'quality' && (
                   <>
-                    {audios.length > 1 && (
-                      <>
-                        <div className="px-2 pt-2 pb-1 text-xs text-muted">Audio track</div>
-                        {audios.map((a) => <Opt key={a.index} on={info?.audioIndex === a.index} onClick={() => chooseAudio(a.index)}>{a.label}</Opt>)}
-                        <div className="px-2 pt-3 pb-1 text-xs text-muted">Quality</div>
-                      </>
-                    )}
                     {qualityOptions.map((q) => <Opt key={q.value} on={prefs.quality === q.value} onClick={() => chooseQuality(q.value)}>{q.label}</Opt>)}
                   </>
                 )}
