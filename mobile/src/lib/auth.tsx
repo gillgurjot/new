@@ -9,7 +9,9 @@ import type { User } from '../api/types'
 const K_SERVER = 'lumen.server'
 const K_USER = 'lumen.user'
 const K_TOKEN = 'lumen.token'
-export const DEFAULT_SERVER = 'https://lumen.local.gurjotgill.com'
+export const DEFAULT_SERVER = 'https://lumen.local.xgill.com'
+// The server moved domains in 1.0.1; phones signed in on 1.0.0 still have this saved.
+const OLD_SERVER = 'https://lumen.local.gurjotgill.com'
 const REDIRECT = 'lumen://auth'
 
 interface AuthCtx {
@@ -69,7 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         SecureStore.getItemAsync(K_TOKEN).catch(() => null),
         AsyncStorage.getItem(K_USER).catch(() => null),
       ])
-      const srv = s || DEFAULT_SERVER
+      const srv = !s || s === OLD_SERVER ? DEFAULT_SERVER : s
+      if (s === OLD_SERVER) AsyncStorage.setItem(K_SERVER, srv).catch(() => {})
       setServer(srv)
       if (t) {
         setSession(srv, t)

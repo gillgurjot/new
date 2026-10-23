@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lumen",
     "slug": "lumen",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "lumen",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.gurjotgill.lumen",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#09090d",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -32,7 +33,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "lumen.local.gurjotgill.com",
+              "host": "lumen.local.xgill.com",
               "pathPrefix": "/play/"
             }
           ],
