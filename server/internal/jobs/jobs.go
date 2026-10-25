@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gillgurjot/lumen/internal/jellyfin"
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
 	"github.com/gillgurjot/lumen/internal/store"
@@ -27,11 +28,16 @@ type Runner struct {
 	TrickplayDir string
 	Trickplay    bool
 	Credits      bool // look for end credits in the background
+	Intro        bool // look for intros in the background
 	ScanInterval time.Duration
 	Log          *slog.Logger
 
+	Jellyfin         *jellyfin.Client // nil when not configured
+	JellyfinInterval time.Duration
+
 	metaQueue chan int64
 	trickWake chan struct{}
+	jf        jfState
 }
 
 func (r *Runner) Start(ctx context.Context) {
@@ -50,6 +56,13 @@ func (r *Runner) Start(ctx context.Context) {
 	}
 	if r.Credits {
 		go r.creditsLoop(ctx)
+	}
+	if r.Intro {
+		go r.introLoop(ctx)
+	}
+	if r.Jellyfin.Enabled() {
+		r.jf.wake = make(chan struct{}, 1)
+		go r.jellyfinLoop(ctx)
 	}
 }
 

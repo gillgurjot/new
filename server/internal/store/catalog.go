@@ -112,7 +112,8 @@ func (s *Store) UpsertMediaFile(m *MediaFile) error {
 		ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, container=excluded.container, duration=excluded.duration,
 		  bitrate=excluded.bitrate, width=excluded.width, height=excluded.height, video_codec=excluded.video_codec, video_profile=excluded.video_profile,
 		  pix_fmt=excluded.pix_fmt, hdr=excluded.hdr, streams=excluded.streams, sidecars=excluded.sidecars, chapters=excluded.chapters, trickplay=0,
-		  credits_state=CASE WHEN media_files.mtime=excluded.mtime AND media_files.size=excluded.size THEN media_files.credits_state ELSE 0 END`,
+		  credits_state=CASE WHEN media_files.mtime=excluded.mtime AND media_files.size=excluded.size THEN media_files.credits_state ELSE 0 END,
+		  intro_state=CASE WHEN media_files.mtime=excluded.mtime AND media_files.size=excluded.size THEN media_files.intro_state ELSE 0 END`,
 		m.ItemID, m.Path, m.Size, m.Mtime, m.Container, m.Duration, m.Bitrate, m.Width, m.Height, m.VideoCodec, m.VideoProfile, m.PixFmt, m.HDR,
 		encodeStreams(m.Streams), encodeStreams(m.Sidecars), mustJSON(m.Chapters))
 	return err
@@ -180,14 +181,15 @@ func (s *Store) MediaFileForItem(itemID int64) (*MediaFile, error) {
 	return scanMediaFile(s.DB.QueryRow(mediaCols+` WHERE item_id=? ORDER BY id LIMIT 1`, itemID))
 }
 
-const mediaCols = `SELECT id, item_id, path, size, mtime, container, duration, bitrate, width, height, video_codec, video_profile, pix_fmt, hdr, streams, sidecars, chapters, trickplay, credits_start, credits_end FROM media_files`
+const mediaCols = `SELECT id, item_id, path, size, mtime, container, duration, bitrate, width, height, video_codec, video_profile, pix_fmt, hdr, streams, sidecars, chapters, trickplay, credits_start, credits_end, intro_start, intro_end, recap_start, recap_end FROM media_files`
 
 func scanMediaFile(r interface{ Scan(...any) error }) (*MediaFile, error) {
 	var m MediaFile
 	var streams, sidecars, chapters string
 	var trick int
 	err := r.Scan(&m.ID, &m.ItemID, &m.Path, &m.Size, &m.Mtime, &m.Container, &m.Duration, &m.Bitrate, &m.Width, &m.Height,
-		&m.VideoCodec, &m.VideoProfile, &m.PixFmt, &m.HDR, &streams, &sidecars, &chapters, &trick, &m.CreditsStart, &m.CreditsEnd)
+		&m.VideoCodec, &m.VideoProfile, &m.PixFmt, &m.HDR, &streams, &sidecars, &chapters, &trick, &m.CreditsStart, &m.CreditsEnd,
+		&m.IntroStart, &m.IntroEnd, &m.RecapStart, &m.RecapEnd)
 	m.Trickplay = trick == 1
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

@@ -231,6 +231,7 @@ func (s *Server) setPlayed(played bool) http.HandlerFunc {
 			return
 		}
 		it, _ = s.St.Item(it.ID, u)
+		s.Jobs.SyncJellyfin()
 		writeJSON(w, 200, it.UserData)
 	}
 }
@@ -248,6 +249,7 @@ func (s *Server) setFavorite(fav bool) http.HandlerFunc {
 			return
 		}
 		it, _ = s.St.Item(it.ID, u)
+		s.Jobs.SyncJellyfin()
 		writeJSON(w, 200, it.UserData)
 	}
 }

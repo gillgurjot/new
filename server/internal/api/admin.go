@@ -34,6 +34,19 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) adminJellyfin(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, s.Jobs.JellyfinStatus())
+}
+
+func (s *Server) adminJellyfinSync(w http.ResponseWriter, r *http.Request) {
+	if !s.Jobs.Jellyfin.Enabled() {
+		writeErr(w, 400, "Jellyfin isn't set up: add JELLYFIN_URL and JELLYFIN_API_KEY")
+		return
+	}
+	s.Jobs.SyncJellyfin()
+	writeJSON(w, 202, s.Jobs.JellyfinStatus())
+}
+
 func (s *Server) adminLibraries(w http.ResponseWriter, r *http.Request) {
 	libs, err := s.St.Libraries()
 	if err != nil {

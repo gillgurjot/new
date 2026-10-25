@@ -318,6 +318,7 @@ func (s *Server) playbackStop(w http.ResponseWriter, r *http.Request) {
 			_, _ = s.St.SaveProgress(u.ID, it.ID, p.Position, it.Duration, p.AudioIndex, p.SubtitleIndex)
 		}
 	}
+	s.Jobs.SyncJellyfin()
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 

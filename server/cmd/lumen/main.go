@@ -19,6 +19,7 @@ import (
 	"github.com/gillgurjot/lumen/internal/db"
 	"github.com/gillgurjot/lumen/internal/hwaccel"
 	"github.com/gillgurjot/lumen/internal/images"
+	"github.com/gillgurjot/lumen/internal/jellyfin"
 	"github.com/gillgurjot/lumen/internal/jobs"
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
@@ -78,7 +79,12 @@ func main() {
 	runner := &jobs.Runner{St: st, Scanner: scanner, Fetcher: fetcher, Streams: streams, FFmpeg: cfg.FFmpeg,
 		TrickplayDir: filepath.Join(cfg.ConfigDir, "trickplay"), Trickplay: os.Getenv("LUMEN_TRICKPLAY") != "false",
 		Credits:      os.Getenv("LUMEN_CREDITS_DETECTION") != "false",
-		ScanInterval: cfg.ScanInterval, Log: log}
+		Intro:        os.Getenv("LUMEN_INTRO_DETECTION") != "false",
+		ScanInterval: cfg.ScanInterval, Log: log,
+		Jellyfin:     jellyfin.New(cfg.JellyfinURL, cfg.JellyfinAPIKey), JellyfinInterval: cfg.JellyfinSyncInterval}
+	if runner.Jellyfin.Enabled() {
+		log.Info("syncing watch history with Jellyfin", "url", cfg.JellyfinURL, "every", cfg.JellyfinSyncInterval)
+	}
 
 	srv := &api.Server{Cfg: cfg, St: st, Auth: auth.New(cfg, st, log), Images: img, Scanner: scanner, Watcher: watcher,
 		Fetcher: fetcher, TMDB: tmdb, Streams: streams, Subs: stream.NewSubtitles(cfg.FFmpeg, filepath.Join(cfg.ConfigDir, "cache")),

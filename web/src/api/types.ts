@@ -117,6 +117,10 @@ export interface MediaFile {
   trickplay: boolean
   creditsStart?: number
   creditsEnd?: number
+  introStart?: number
+  introEnd?: number
+  recapStart?: number
+  recapEnd?: number
 }
 
 export interface ItemDetail extends Item {

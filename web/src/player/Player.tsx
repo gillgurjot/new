@@ -512,7 +512,22 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
   // ---------- chapters / intro / up next ----------
 
   const chapters = info?.chapters || []
-  const intro = chapters.find((c) => /intro|opening|recap|^op$/i.test(c.title) && time >= c.start && time < c.end - 1)
+  // Intro and recap: what the server found (chapters, matching audio across episodes or
+  // Jellyfin's Intro Skipper), else a chapter with a telling name.
+  const segments = useMemo(() => {
+    const m = info?.media
+    const out: { start: number; end: number; label: string }[] = []
+    if (m?.recapEnd) out.push({ start: m.recapStart || 0, end: m.recapEnd, label: 'Skip recap' })
+    if (m?.introEnd) out.push({ start: m.introStart || 0, end: m.introEnd, label: 'Skip intro' })
+    if (!out.length) {
+      for (const c of chapters) {
+        if (/recap|previously/i.test(c.title)) out.push({ start: c.start, end: c.end, label: 'Skip recap' })
+        else if (/intro|opening|^op$/i.test(c.title)) out.push({ start: c.start, end: c.end, label: 'Skip intro' })
+      }
+    }
+    return out
+  }, [chapters, info?.media])
+  const intro = segments.find((g) => time >= g.start && time < g.end - 1)
   // End credits: a chapter from the file, else what the server found by looking at the picture.
   const credits = useMemo(() => {
     const ch = chapters.find((c) => /credits|ending|^ed$|outro/i.test(c.title) && c.start > duration * 0.5)
@@ -798,7 +813,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
       {/* Skip intro / credits */}
       {intro && !prefs.skipIntro && (
         <button onClick={() => seek(intro.end)} className="absolute right-4 bottom-32 md:right-10 md:bottom-36 btn-primary !rounded-xl fade-in z-10">
-          Skip intro <SkipForward className="size-4" />
+          {intro.label} <SkipForward className="size-4" />
         </button>
       )}
       {inCredits && upNext === null && !intro && (

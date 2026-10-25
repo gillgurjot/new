@@ -226,6 +226,8 @@ func (s *Server) Router() http.Handler {
 		r.Route("/api/admin", func(r chi.Router) {
 			r.Use(requireAdmin)
 			r.Get("/system", s.adminSystem)
+			r.Get("/jellyfin", s.adminJellyfin)
+			r.Post("/jellyfin/sync", s.adminJellyfinSync)
 			r.Get("/libraries", s.adminLibraries)
 			r.Post("/libraries", s.adminCreateLibrary)
 			r.Put("/libraries/{id}", s.adminUpdateLibrary)

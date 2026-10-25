@@ -166,6 +166,11 @@ type MediaFile struct {
 	// End credits found by analysing the picture (0 = none found or not analysed yet).
 	CreditsStart float64 `json:"creditsStart,omitempty"`
 	CreditsEnd   float64 `json:"creditsEnd,omitempty"`
+	// Opening titles and "previously on" (0 = none known).
+	IntroStart float64 `json:"introStart,omitempty"`
+	IntroEnd   float64 `json:"introEnd,omitempty"`
+	RecapStart float64 `json:"recapStart,omitempty"`
+	RecapEnd   float64 `json:"recapEnd,omitempty"`
 }
 
 // AudioStreams returns only audio streams.

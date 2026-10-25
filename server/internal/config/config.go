@@ -35,6 +35,11 @@ type Config struct {
 	SeerrAPIKey    string
 	SeerrPublicURL string // link shown to people, e.g. https://request.example.com
 
+	// Optional Jellyfin server to keep watch history in step with.
+	JellyfinURL          string
+	JellyfinAPIKey       string
+	JellyfinSyncInterval time.Duration
+
 	HWAccel       string // auto | vaapi | qsv | none
 	VAAPIDevice   string
 	MaxTranscodes int
@@ -77,6 +82,8 @@ func Load() (*Config, error) {
 		SeerrURL:         strings.TrimRight(env("SEERR_URL", ""), "/"),
 		SeerrAPIKey:      env("SEERR_API_KEY", ""),
 		SeerrPublicURL:   strings.TrimRight(env("SEERR_PUBLIC_URL", ""), "/"),
+		JellyfinURL:      strings.TrimRight(env("JELLYFIN_URL", ""), "/"),
+		JellyfinAPIKey:   env("JELLYFIN_API_KEY", ""),
 		HWAccel:          strings.ToLower(env("LUMEN_HWACCEL", "auto")),
 		VAAPIDevice:      env("LUMEN_VAAPI_DEVICE", "/dev/dri/renderD128"),
 		SecretKey:        env("LUMEN_SECRET_KEY", ""),
@@ -94,6 +101,9 @@ func Load() (*Config, error) {
 	}
 	if c.SessionTTL, err = time.ParseDuration(env("LUMEN_SESSION_TTL", "720h")); err != nil || c.SessionTTL < time.Minute {
 		errs = append(errs, errors.New("LUMEN_SESSION_TTL must be a duration of at least 1m, e.g. 720h"))
+	}
+	if c.JellyfinSyncInterval, err = time.ParseDuration(env("JELLYFIN_SYNC_INTERVAL", "5m")); err != nil || c.JellyfinSyncInterval < time.Minute {
+		errs = append(errs, errors.New("JELLYFIN_SYNC_INTERVAL must be a duration of at least 1m, e.g. 5m"))
 	}
 	switch c.HWAccel {
 	case "auto", "vaapi", "qsv", "none":
