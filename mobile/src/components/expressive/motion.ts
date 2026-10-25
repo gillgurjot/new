@@ -10,6 +10,8 @@ export const motion = {
   calm: spring(0.85, 700),
   spatial: spring(0.8, 380),
   slowSpatial: spring(0.8, 200),
+  // Bottom sheets: a settle of a few points, done in about a fifth of a second.
+  sheet: spring(0.88, 560),
   // Effects: opacity and colour. No overshoot.
   fastEffects: spring(1, 3800),
   effects: spring(1, 1600),

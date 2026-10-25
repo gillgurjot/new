@@ -1,11 +1,12 @@
 import { Children, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
-  Modal, Pressable, Text as RNText, TextInput, View, type GestureResponderEvent, type StyleProp, type TextInputProps, type TextProps, type TextStyle, type ViewStyle,
+  Modal, Pressable, Text as RNText, TextInput, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextInputProps, type TextProps, type TextStyle, type ViewStyle,
 } from 'react-native'
 import Animated, {
-  Easing, FadeIn, FadeOut, LinearTransition, SlideInDown, SlideOutDown, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withDelay, withSpring,
+  Easing, FadeIn, FadeOut, LinearTransition, interpolate, interpolateColor, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
 } from 'react-native-reanimated'
 import { Image, type ImageSource } from 'expo-image'
+import { GestureDetector, GestureHandlerRootView, ScrollView as GHScrollView, usePanGesture } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { ArrowLeft, Check, CircleAlert, Info, Search, X, type LucideIcon } from 'lucide-react-native'
@@ -521,25 +522,112 @@ export function ListRow({
 
 // ---------- sheet ----------
 
-/** M3 bottom sheet. */
+// The surface runs this far past the bottom edge, so the spring's small overshoot never opens a gap.
+const SHEET_TAIL = 64
+
+/**
+ * M3 bottom sheet: springs up with a slight settle, closes on a drag down, a fling, the scrim or Back,
+ * and stays mounted until the close has played out.
+ */
 export function Sheet({ open, onClose, children, title, maxHeight = '85%' }: { open: boolean; onClose: () => void; children: ReactNode; title?: string; maxHeight?: `${number}%` | number }) {
   const insets = useSafeAreaInsets()
   const s = useStyles()
   const { f } = useTheme()
+  const { height: screen } = useWindowDimensions()
+  const [shown, setShown] = useState(open)
+  const laidOut = useRef(false)
+  const h = useSharedValue(screen) // laid-out height of the visible part
+  const y = useSharedValue(screen + SHEET_TAIL) // 0 = open, h = just off screen
+  const scrollY = useSharedValue(0)
+  const grab = useSharedValue(0) // drag distance already spent scrolling the list back to the top
+  const close = useRef(onClose)
+  close.current = onClose
+  const requestClose = () => close.current()
+  const unmount = () => {
+    laidOut.current = false
+    setShown(false)
+  }
+
+  useEffect(() => {
+    if (open) {
+      setShown(true)
+      // Reopened while closing: it's already laid out, so spring straight back.
+      if (laidOut.current) y.value = withSpring(0, motion.sheet)
+    } else if (shown) {
+      y.value = withTiming(h.value + SHEET_TAIL, { duration: 200, easing: Easing.in(Easing.cubic) }, (done) => {
+        if (done) runOnJS(unmount)()
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const pan = usePanGesture({
+    activeOffsetY: [-12, 12],
+    failOffsetX: [-24, 24],
+    onBegin: () => {
+      'worklet'
+      grab.value = 0
+    },
+    onUpdate: (e) => {
+      'worklet'
+      // While the list is scrolled down the drag scrolls it; once it reaches the top the sheet follows.
+      if (scrollY.value > 0 && y.value === 0) {
+        grab.value = e.translationY
+        return
+      }
+      y.value = Math.max(0, e.translationY - grab.value)
+    },
+    onDeactivate: (e) => {
+      'worklet'
+      const fling = e.velocityY > 900
+      if (y.value > 0 && (fling || y.value > h.value * 0.35)) {
+        y.value = withTiming(h.value + SHEET_TAIL, { duration: 180, easing: Easing.out(Easing.cubic) }, (done) => {
+          if (done) runOnJS(requestClose)()
+        })
+      } else if (y.value !== 0) {
+        y.value = withSpring(0, { ...motion.sheet, velocity: e.velocityY })
+      }
+    },
+  })
+
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }))
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: interpolate(y.value, [0, h.value], [1, 0], 'clamp') }))
+
   return (
-    <Modal visible={open} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      {open && (
-        <>
-          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={s.backdrop}>
-            <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Close" />
-          </Animated.View>
-          <Animated.View entering={SlideInDown.duration(220).easing(Easing.out(Easing.cubic))} exiting={SlideOutDown.duration(160).easing(Easing.in(Easing.cubic))} style={[s.sheet, { paddingBottom: insets.bottom + 12, maxHeight }]}>
+    <Modal visible={shown} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Animated.View style={[s.backdrop, scrimStyle]}>
+          <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Close" />
+        </Animated.View>
+        <GestureDetector gesture={pan}>
+          <Animated.View
+            onLayout={(e) => {
+              h.value = e.nativeEvent.layout.height - SHEET_TAIL
+              if (laidOut.current || !open) return
+              laidOut.current = true
+              // Start exactly one sheet-height down, then spring up.
+              y.value = h.value + SHEET_TAIL
+              y.value = withSpring(0, motion.sheet)
+            }}
+            style={[s.sheet, { bottom: -SHEET_TAIL, paddingBottom: insets.bottom + 12 + SHEET_TAIL, maxHeight }, sheetStyle]}
+          >
             <View style={s.grabber} />
             {!!title && <Text style={[f.h2, { paddingHorizontal: 24, paddingBottom: 10, fontSize: 20 }]}>{title}</Text>}
-            <Animated.ScrollView bounces={false} contentContainerStyle={{ paddingHorizontal: 12 }}>{children}</Animated.ScrollView>
+            <GHScrollView
+              simultaneousWith={pan}
+              bounces={false}
+              overScrollMode="never"
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                scrollY.value = e.nativeEvent.contentOffset.y
+              }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+            >
+              {children}
+            </GHScrollView>
           </Animated.View>
-        </>
-      )}
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   )
 }
