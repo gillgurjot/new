@@ -69,7 +69,7 @@ function Root() {
   if (!ready || !prefsReady) return <View style={{ flex: 1, backgroundColor: c.bg }} />
   const signedIn = !!user
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right', orientation: 'portrait_up' }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, statusBarStyle: c.dark ? 'light' : 'dark', animation: 'slide_from_right', orientation: 'portrait_up' }}>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="item/[id]" />

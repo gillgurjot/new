@@ -90,7 +90,7 @@ export default function Home() {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
           {d.libraries.map((l) => (
-            <Chip key={l.id} label={l.name} onPress={() => router.push({ pathname: '/library/[id]', params: { id: String(l.id) } })} />
+            <Chip key={l.id} label={l.name} elevated onPress={() => router.push({ pathname: '/library/[id]', params: { id: String(l.id) } })} />
           ))}
         </ScrollView>
       </View>

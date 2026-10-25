@@ -167,14 +167,15 @@ export function IconButton({
 }
 
 /** M3 filter chip: 8dp corners, a check and the secondary container once selected. */
-export function Chip({ label, active, onPress, icon: Icon, trailing: Trailing }: { label: string; active?: boolean; onPress?: () => void; icon?: LucideIcon; trailing?: LucideIcon }) {
+/** `elevated` gives the chip a tinted fill instead of an outline, for chips over artwork. */
+export function Chip({ label, active, elevated, onPress, icon: Icon, trailing: Trailing }: { label: string; active?: boolean; elevated?: boolean; onPress?: () => void; icon?: LucideIcon; trailing?: LucideIcon }) {
   const { c, f } = useTheme()
   const { p, onPressIn, onPressOut } = usePressValue()
   const shape = useAnimatedStyle(() => ({ borderRadius: interpolate(p.value, [0, 1], [8, 16]) }))
   const fg = active ? c.onSecondaryContainer : c.muted
   const Lead = active && !Icon ? Check : Icon
   return (
-    <Animated.View layout={LinearTransition.springify().damping(motion.calm.damping).stiffness(motion.calm.stiffness)} style={[{ height: 34, overflow: 'hidden', backgroundColor: active ? c.secondaryContainer : 'transparent', borderWidth: active ? 0 : 1, borderColor: c.outline }, shape]}>
+    <Animated.View layout={LinearTransition.springify().damping(motion.calm.damping).stiffness(motion.calm.stiffness)} style={[{ height: 34, overflow: 'hidden', backgroundColor: active ? c.secondaryContainer : elevated ? alpha(c.surface3, 0.88) : 'transparent', borderWidth: active || elevated ? 0 : 1, borderColor: c.outline }, shape]}>
       <Pressable
         onPress={() => {
           haptic.tick()
