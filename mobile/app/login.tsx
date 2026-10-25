@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { KeyboardAvoidingView, Pressable, StyleSheet, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ChevronDown } from 'lucide-react-native'
-import { Button } from '../src/components/ui'
+import { LogIn, Pencil, Play, Server } from 'lucide-react-native'
+import { Button, Field, Text } from '../src/components/ui'
+import { MorphShape } from '../src/components/expressive'
 import { DEFAULT_SERVER, SignInCancelled, useAuth } from '../src/lib/auth'
-import { c, radius } from '../src/theme'
+import { makeStyles, useTheme } from '../src/theme'
 
 export default function Login() {
   const insets = useSafeAreaInsets()
+  const { c } = useTheme()
+  const styles = useStyles()
   const { signIn, server: saved } = useAuth()
   const [server, setServer] = useState(saved || DEFAULT_SERVER)
   const [editing, setEditing] = useState(false)
@@ -31,13 +34,13 @@ export default function Login() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <LinearGradient colors={['#1a1430', c.bg, c.bg]} style={StyleSheet.absoluteFill} />
-      <View style={[styles.wrap, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 }]}>
+      <LinearGradient colors={[c.accentContainer, c.bg, c.bg]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
+      <View style={[styles.wrap, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 24 }]}>
         <View style={{ alignItems: 'center' }}>
           <Pressable onLongPress={() => setShowDev((s) => !s)} delayLongPress={1500}>
-            <LinearGradient colors={['#a78bfa', '#f472b6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logo}>
-              <View style={styles.tri} />
-            </LinearGradient>
+            <MorphShape shapes={['cookie9', 'sunny', 'clover4', 'softBurst']} size={112} color={c.accent} interval={1400}>
+              <Play size={40} color={c.onAccent} fill={c.onAccent} style={{ marginLeft: 6 }} />
+            </MorphShape>
           </Pressable>
           <Text style={styles.brand}>Lumen</Text>
           <Text style={styles.tag}>Your movies and shows, everywhere.</Text>
@@ -45,7 +48,8 @@ export default function Login() {
 
         <View style={{ gap: 12 }}>
           {editing ? (
-            <TextInput
+            <Field
+              icon={Server}
               value={server}
               onChangeText={setServer}
               autoCapitalize="none"
@@ -54,23 +58,21 @@ export default function Login() {
               autoFocus
               selectTextOnFocus
               placeholder="https://lumen.example.com"
-              placeholderTextColor={c.muted}
-              style={styles.input}
               onSubmitEditing={() => go()}
             />
           ) : (
-            <Pressable onPress={() => setEditing(true)} style={styles.server}>
-              <Text style={{ color: c.muted, fontSize: 12 }}>Server</Text>
-              <Text style={{ color: c.fg, fontSize: 14, flex: 1, textAlign: 'right' }} numberOfLines={1}>{server.replace(/^https?:\/\//, '')}</Text>
-              <ChevronDown size={16} color={c.muted} />
+            <Pressable onPress={() => setEditing(true)} style={styles.server} android_ripple={{ color: c.faint }}>
+              <Server size={18} color={c.muted} />
+              <Text style={styles.serverText} numberOfLines={1}>{server.replace(/^https?:\/\//, '')}</Text>
+              <Pencil size={16} color={c.muted} />
             </Pressable>
           )}
           {!!error && <Text style={styles.error}>{error}</Text>}
-          <Button title="Sign in" variant="primary" onPress={() => go()} loading={busy && !dev} style={{ height: 52 }} />
+          <Button title="Sign in" variant="filled" size="l" icon={LogIn} onPress={() => go()} loading={busy && !dev} />
           {showDev && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TextInput value={dev} onChangeText={setDev} placeholder="Test user name" placeholderTextColor={c.muted} style={[styles.input, { flex: 1 }]} autoCapitalize="none" />
-              <Button title="Test sign-in" onPress={() => dev && go(dev)} disabled={!dev} loading={busy && !!dev} />
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <Field value={dev} onChangeText={setDev} placeholder="Test user name" style={{ flex: 1 }} autoCapitalize="none" />
+              <Button title="Test" onPress={() => dev && go(dev)} disabled={!dev} loading={busy && !!dev} />
             </View>
           )}
           <Text style={styles.hint}>You sign in with your Pocket ID account. Lumen works at home or over Tailscale.</Text>
@@ -80,14 +82,12 @@ export default function Login() {
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c, f) => ({
   wrap: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 24 },
-  logo: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
-  tri: { width: 0, height: 0, marginLeft: 8, borderTopWidth: 18, borderBottomWidth: 18, borderLeftWidth: 30, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: c.bg },
-  brand: { color: c.fg, fontSize: 38, fontWeight: '800', letterSpacing: -1.2, marginTop: 18 },
-  tag: { color: c.muted, fontSize: 15, marginTop: 6 },
-  input: { height: 52, borderRadius: radius.md, backgroundColor: c.surface2, color: c.fg, paddingHorizontal: 14, fontSize: 15, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  server: { height: 52, borderRadius: radius.md, backgroundColor: c.surface, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  error: { color: c.danger, fontSize: 14, textAlign: 'center' },
-  hint: { color: c.muted, fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
-})
+  brand: { ...f.display, fontSize: 44, lineHeight: 52, marginTop: 22 },
+  tag: { ...f.body, color: c.muted, marginTop: 4 },
+  server: { height: 56, borderRadius: 28, backgroundColor: c.surface3, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, overflow: 'hidden' },
+  serverText: { ...f.body, flex: 1 },
+  error: { ...f.small, color: c.danger, textAlign: 'center' },
+  hint: { ...f.tiny, textAlign: 'center', lineHeight: 18 },
+}))

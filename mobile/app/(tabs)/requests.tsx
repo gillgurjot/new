@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native'
+import { FlatList, ScrollView, View, useWindowDimensions } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Search, Sparkles, X } from 'lucide-react-native'
+import { Search, Sparkles, TriangleAlert } from 'lucide-react-native'
 import { api } from '../../src/api/client'
 import type { RecentRequest, RequestTitle } from '../../src/api/types'
 import { RequestCard, openRequest } from '../../src/components/cards'
-import { Chip, EmptyState, Loading, PageTitle } from '../../src/components/ui'
+import { Chip, EmptyState, Loading, PageTitle, SearchBar, Text } from '../../src/components/ui'
+import { LoadingIndicator } from '../../src/components/expressive'
 import { timeAgo } from '../../src/lib/format'
 import { useRequestsConfig } from '../../src/lib/queries'
-import { c, font, radius } from '../../src/theme'
+import { makeStyles, useTheme } from '../../src/theme'
 
 type Page = { results: RequestTitle[]; page: number; totalPages: number }
 
@@ -23,6 +24,8 @@ const lists = [
 
 export default function Requests() {
   const insets = useSafeAreaInsets()
+  const { c, f: font } = useTheme()
+  const styles = useStyles()
   const params = useLocalSearchParams<{ q?: string }>()
   const { width } = useWindowDimensions()
   const cfg = useRequestsConfig()
@@ -63,7 +66,7 @@ export default function Requests() {
   if (!enabled) {
     return (
       <View style={{ flex: 1, justifyContent: 'center' }}>
-        <EmptyState icon={<Sparkles size={26} color={c.muted} />} title="Requests aren’t set up">An admin can connect Seerr on the server.</EmptyState>
+        <EmptyState icon={Sparkles} shape="sunny" title="Requests aren’t set up">An admin can connect Seerr on the server.</EmptyState>
       </View>
     )
   }
@@ -72,23 +75,24 @@ export default function Requests() {
     <View style={{ paddingTop: insets.top + 16 }}>
       <View style={{ paddingHorizontal: 16 }}>
         <PageTitle sub="Find a movie or show and request it. It’s downloaded and added to the library automatically.">Request</PageTitle>
-        {!cfg.data?.canRequest && <Text style={styles.warn}>Requests are turned off for your account. You can still browse.</Text>}
-        <View style={styles.box}>
-          <Search size={18} color={c.muted} />
-          <TextInput value={text} onChangeText={setText} placeholder="Search every movie and show" placeholderTextColor={c.muted} style={styles.input} returnKeyType="search" autoCorrect={false} />
-          {!!text && <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel="Clear"><X size={18} color={c.muted} /></Pressable>}
-        </View>
+        {!cfg.data?.canRequest && (
+          <View style={styles.warn}>
+            <TriangleAlert size={18} color={c.onTertiaryContainer} />
+            <Text style={styles.warnText}>Requests are turned off for your account. You can still browse.</Text>
+          </View>
+        )}
+        <SearchBar value={text} onChangeText={setText} onClear={() => setText('')} placeholder="Search every movie and show" style={{ marginBottom: 20 }} />
       </View>
       {!q && (recent.data?.length || 0) > 0 && (
         <View style={{ marginBottom: 20 }}>
-          <Text style={[font.h3, { paddingHorizontal: 16, marginBottom: 10 }]}>Recent requests</Text>
+          <Text style={[font.label, { color: c.accent, paddingHorizontal: 20, marginBottom: 10 }]}>Recent requests</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}>
             {recent.data!.map((r) => {
               const status = r.status === 'available' ? 'available' : r.status === 'approved' ? 'processing' : r.status === 'pending' ? 'pending' : r.title.status
               return (
                 <View key={r.id} style={{ width: 110 }}>
                   <RequestCard t={{ ...r.title, status }} width={110} onPress={() => openRequest(r.title)} />
-                  <Text style={font.tiny} numberOfLines={1}>{r.status === 'declined' ? 'Declined' : r.status === 'failed' ? 'Failed' : r.requestedBy} · {timeAgo(Date.parse(r.createdAt) / 1000)}</Text>
+                  <Text style={[font.tiny, { marginTop: 1 }]} numberOfLines={1}>{r.status === 'declined' ? 'Declined' : r.status === 'failed' ? 'Failed' : r.requestedBy} · {timeAgo(Date.parse(r.createdAt) / 1000)}</Text>
                 </View>
               )
             })}
@@ -100,7 +104,12 @@ export default function Requests() {
           {lists.map((x) => <Chip key={x.v} label={x.l} active={list === x.v} onPress={() => setList(x.v)} />)}
         </ScrollView>
       )}
-      {!!browse.error && <Text style={[styles.warn, { marginHorizontal: 16 }]}>{(browse.error as Error).message}</Text>}
+      {!!browse.error && (
+        <View style={[styles.warn, { marginHorizontal: 16 }]}>
+          <TriangleAlert size={18} color={c.onTertiaryContainer} />
+          <Text style={styles.warnText}>{(browse.error as Error).message}</Text>
+        </View>
+      )}
     </View>
   )
 
@@ -117,15 +126,14 @@ export default function Requests() {
       onEndReached={() => browse.hasNextPage && !browse.isFetchingNextPage && browse.fetchNextPage()}
       onEndReachedThreshold={1.5}
       ListEmptyComponent={
-        (browse.isLoading ? <Loading /> : q && browse.data ? <EmptyState icon={<Search size={26} color={c.muted} />} title={`Nothing found for “${q}”`}>Try the original title or fewer words.</EmptyState> : null) ?? undefined
+        (browse.isLoading ? <Loading /> : q && browse.data ? <EmptyState icon={Search} shape="pentagon" title={`Nothing found for “${q}”`}>Try the original title or fewer words.</EmptyState> : null) ?? undefined
       }
-      ListFooterComponent={browse.isFetchingNextPage ? <ActivityIndicator color={c.accent} style={{ margin: 20 }} /> : undefined}
+      ListFooterComponent={browse.isFetchingNextPage ? <View style={{ alignItems: 'center', margin: 20 }}><LoadingIndicator size={40} /></View> : undefined}
     />
   )
 }
 
-const styles = StyleSheet.create({
-  box: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20, height: 48, borderRadius: radius.pill, backgroundColor: c.surface2, paddingHorizontal: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  input: { flex: 1, color: c.fg, fontSize: 16, paddingVertical: 0 },
-  warn: { color: '#fde68a', backgroundColor: 'rgba(251,191,36,0.1)', borderColor: 'rgba(251,191,36,0.3)', borderWidth: 1, borderRadius: 14, padding: 12, fontSize: 13, marginBottom: 14 },
-})
+const useStyles = makeStyles((c, f) => ({
+  warn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.tertiaryContainer, borderRadius: 20, padding: 14, marginBottom: 14 },
+  warnText: { ...f.small, color: c.onTertiaryContainer, flex: 1 },
+}))

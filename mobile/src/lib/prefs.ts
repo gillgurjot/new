@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { setHapticsEnabled } from './haptics'
 
 // Per-device settings (the server keeps language preferences per account).
 export interface Prefs {
@@ -11,6 +12,10 @@ export interface Prefs {
   skipIntro: boolean
   skipCredits: boolean
   downloadOnWifiOnly: boolean
+  themeMode: 'system' | 'light' | 'dark'
+  dynamicColor: boolean // Material You colours from the wallpaper
+  seedColor: string
+  haptics: boolean
 }
 
 const KEY = 'lumen.prefs'
@@ -23,6 +28,10 @@ const defaults: Prefs = {
   skipIntro: false,
   skipCredits: false,
   downloadOnWifiOnly: true,
+  themeMode: 'dark',
+  dynamicColor: true,
+  seedColor: '#7C66FF',
+  haptics: true,
 }
 
 let current: Prefs = defaults
@@ -32,6 +41,7 @@ export async function loadPrefs() {
   try {
     const raw = await AsyncStorage.getItem(KEY)
     if (raw) current = { ...defaults, ...JSON.parse(raw) }
+    setHapticsEnabled(current.haptics)
   } catch {
     /* defaults */
   }
@@ -43,6 +53,7 @@ export const getPrefs = () => current
 
 export function setPrefs(p: Partial<Prefs>) {
   current = { ...current, ...p }
+  setHapticsEnabled(current.haptics)
   AsyncStorage.setItem(KEY, JSON.stringify(current)).catch(() => {})
   subs.forEach((f) => f())
 }

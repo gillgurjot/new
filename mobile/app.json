@@ -2,11 +2,11 @@
   "expo": {
     "name": "Lumen",
     "slug": "lumen",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "scheme": "lumen",
     "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#09090d",
     "ios": {
       "bundleIdentifier": "com.gurjotgill.lumen",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.gurjotgill.lumen",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#09090d",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -52,6 +52,36 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-image",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "GoogleSans",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_400Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_500Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_600SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_700Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
       [
         "expo-screen-orientation",
         {

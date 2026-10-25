@@ -1,165 +1,417 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Children, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
-  ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle,
+  Modal, Pressable, Text as RNText, TextInput, View, type GestureResponderEvent, type StyleProp, type TextInputProps, type TextProps, type TextStyle, type ViewStyle,
 } from 'react-native'
+import Animated, {
+  FadeIn, FadeOut, LinearTransition, SlideInDown, SlideOutDown, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withDelay, withSpring,
+} from 'react-native-reanimated'
 import { Image, type ImageSource } from 'expo-image'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
-import { ArrowLeft, Check, CircleAlert, Info } from 'lucide-react-native'
-import { c, font, radius } from '../theme'
+import { ArrowLeft, Check, CircleAlert, Info, Search, X, type LucideIcon } from 'lucide-react-native'
+import { FONT, alpha, makeStyles, radius, useTheme, type Palette } from '../theme'
+import { LoadingIndicator, ShapeIcon, WavyProgress, motion, usePressValue, type ShapeName, type Tone } from './expressive'
+import { haptic } from '../lib/haptics'
+
+// ---------- text ----------
+
+/** Text in Google Sans and the theme's text colour. */
+export function Text({ style, ...p }: TextProps) {
+  const { c } = useTheme()
+  return <RNText {...p} style={[{ fontFamily: FONT, color: c.fg }, style]} />
+}
+
+export function Field({ style, icon: Icon, onClear, ...p }: TextInputProps & { icon?: LucideIcon; onClear?: () => void }) {
+  const { c } = useTheme()
+  const s = useStyles()
+  return (
+    <View style={[s.field, style as StyleProp<ViewStyle>]}>
+      {Icon && <Icon size={20} color={c.muted} />}
+      <TextInput placeholderTextColor={c.muted} cursorColor={c.accent} selectionColor={alpha(c.accent, 0.35)} {...p} style={s.fieldInput} />
+      {!!onClear && !!p.value && (
+        <Pressable onPress={onClear} hitSlop={10} accessibilityLabel="Clear">
+          <X size={20} color={c.muted} />
+        </Pressable>
+      )}
+    </View>
+  )
+}
+
+/** M3 search bar: a full pill on the highest container. */
+export function SearchBar(p: TextInputProps & { onClear?: () => void }) {
+  const s = useStyles()
+  return <Field icon={Search} returnKeyType="search" autoCorrect={false} {...p} style={[s.search, p.style as StyleProp<ViewStyle>]} />
+}
 
 // ---------- buttons ----------
 
-type Variant = 'primary' | 'accent' | 'ghost' | 'danger' | 'subtle'
+export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text' | 'danger' | 'light'
 
+function buttonColors(c: Palette, v: ButtonVariant): [string, string] {
+  return {
+    filled: [c.accent, c.onAccent],
+    tonal: [c.secondaryContainer, c.onSecondaryContainer],
+    outlined: ['transparent', c.muted],
+    text: ['transparent', c.accent],
+    danger: [c.dangerContainer, c.onDangerContainer],
+    // White on artwork and video.
+    light: ['#ffffff', '#000000'],
+  }[v] as [string, string]
+}
+
+/**
+ * Expressive button: a full pill that squares off while pressed and springs back
+ * with a little overshoot. size s = 40dp, m = 48dp, l = 56dp.
+ */
 export function Button({
-  title, icon, onPress, variant = 'ghost', loading, disabled, style, small, testID,
+  title, icon: Icon, onPress, variant = 'tonal', loading, disabled, style, size = 'm', testID, iconFill,
 }: {
   title?: string
-  icon?: ReactNode
+  icon?: LucideIcon
   onPress?: () => void
-  variant?: Variant
+  variant?: ButtonVariant
   loading?: boolean
   disabled?: boolean
   style?: StyleProp<ViewStyle>
-  small?: boolean
+  size?: 's' | 'm' | 'l'
   testID?: string
+  iconFill?: boolean
 }) {
-  const v = variants[variant]
+  const { c, f } = useTheme()
+  const h = { s: 40, m: 48, l: 56 }[size]
+  const { p, onPressIn, onPressOut } = usePressValue()
+  const shape = useAnimatedStyle(() => ({ borderRadius: interpolate(p.value, [0, 1], [h / 2, size === 's' ? 8 : 12]) }))
+  const off = disabled || loading
+  let [bg, fg] = buttonColors(c, variant)
+  if (disabled) {
+    bg = variant === 'text' || variant === 'outlined' ? 'transparent' : alpha(c.fg, 0.12)
+    fg = alpha(c.fg, 0.38)
+  }
+  return (
+    <Animated.View style={[{ height: h, overflow: 'hidden', backgroundColor: bg }, variant === 'outlined' && { borderWidth: 1, borderColor: c.outline }, style, shape]}>
+      <Pressable
+        testID={testID}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={off}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: !!disabled, busy: !!loading }}
+        android_ripple={{ color: alpha(fg, 0.14) }}
+        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: size === 's' ? 16 : 24 }}
+      >
+        {loading ? <LoadingIndicator size={22} color={fg} /> : Icon ? <Icon size={size === 'l' ? 22 : 20} color={fg} fill={iconFill ? fg : 'none'} /> : null}
+        {!!title && <RNText style={[f.label, { color: fg, fontSize: size === 'l' ? 16 : size === 's' ? 14 : 15 }]} numberOfLines={1}>{title}</RNText>}
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+export type IconVariant = 'standard' | 'tonal' | 'filled' | 'outlined' | 'overlay'
+
+/** Expressive icon button: round at rest, squares off while pressed; selected settles on a rounded square. */
+export function IconButton({
+  icon: Icon, onPress, onLongPress, label, size = 40, variant = 'tonal', selected, disabled, style, color, fill,
+}: {
+  icon: LucideIcon
+  onPress?: () => void
+  onLongPress?: () => void
+  label: string
+  size?: number
+  variant?: IconVariant
+  selected?: boolean
+  disabled?: boolean
+  style?: StyleProp<ViewStyle>
+  color?: string
+  fill?: boolean
+}) {
+  const { c } = useTheme()
+  const { p, onPressIn, onPressOut } = usePressValue()
+  const sel = useSharedValue(selected ? 1 : 0)
+  useEffect(() => {
+    sel.value = withSpring(selected ? 1 : 0, motion.fastSpatial)
+  }, [selected, sel])
+  const shape = useAnimatedStyle(() => {
+    const rest = interpolate(sel.value, [0, 1], [size / 2, size * 0.3])
+    return { borderRadius: interpolate(p.value, [0, 1], [rest, size * 0.22]) }
+  })
+  let [bg, fg] = {
+    standard: ['transparent', selected ? c.accent : c.muted],
+    tonal: [selected ? c.secondary : c.secondaryContainer, selected ? c.onAccent : c.onSecondaryContainer],
+    filled: [c.accent, c.onAccent],
+    outlined: [selected ? c.inverse : 'transparent', selected ? c.onInverse : c.muted],
+    overlay: [selected ? '#ffffff' : 'rgba(0,0,0,0.42)', selected ? '#000000' : '#ffffff'],
+  }[variant]
+  if (color) fg = color
+  if (disabled) fg = alpha(c.fg, 0.38)
+  return (
+    <Animated.View style={[{ width: size, height: size, overflow: 'hidden', backgroundColor: bg }, variant === 'outlined' && !selected && { borderWidth: 1, borderColor: c.outline }, style, shape]}>
+      <Pressable
+        onPress={onPress}
+        onLongPress={onLongPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ selected, disabled }}
+        android_ripple={{ color: alpha(fg, 0.16) }}
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Icon size={Math.round(size * 0.5)} color={fg} fill={fill ? fg : 'none'} />
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+/** M3 filter chip: 8dp corners, a check and the secondary container once selected. */
+export function Chip({ label, active, onPress, icon: Icon, trailing: Trailing }: { label: string; active?: boolean; onPress?: () => void; icon?: LucideIcon; trailing?: LucideIcon }) {
+  const { c, f } = useTheme()
+  const { p, onPressIn, onPressOut } = usePressValue()
+  const shape = useAnimatedStyle(() => ({ borderRadius: interpolate(p.value, [0, 1], [8, 16]) }))
+  const fg = active ? c.onSecondaryContainer : c.muted
+  const Lead = active && !Icon ? Check : Icon
+  return (
+    <Animated.View layout={LinearTransition.springify().damping(motion.calm.damping).stiffness(motion.calm.stiffness)} style={[{ height: 34, overflow: 'hidden', backgroundColor: active ? c.secondaryContainer : 'transparent', borderWidth: active ? 0 : 1, borderColor: c.outline }, shape]}>
+      <Pressable
+        onPress={() => {
+          haptic.tick()
+          onPress?.()
+        }}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        android_ripple={{ color: alpha(fg, 0.14) }}
+        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: Lead ? 10 : 14, paddingRight: Trailing ? 10 : 14 }}
+      >
+        {Lead && <Lead size={16} color={fg} />}
+        <RNText style={[f.label, { color: active ? c.onSecondaryContainer : c.fg, fontSize: 13.5 }]}>{label}</RNText>
+        {Trailing && <Trailing size={16} color={fg} />}
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+/** Expressive switch: the thumb grows while pressed and slides on the fast spatial spring. */
+export function Switch({ value, onValueChange, disabled }: { value: boolean; onValueChange?: (v: boolean) => void; disabled?: boolean }) {
+  const { c } = useTheme()
+  const on = useSharedValue(value ? 1 : 0)
+  const { p, onPressIn, onPressOut } = usePressValue()
+  useEffect(() => {
+    on.value = withSpring(value ? 1 : 0, motion.fastSpatial)
+  }, [value, on])
+  const track = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(on.value, [0, 1], [c.surface4, c.accent]),
+    borderColor: interpolateColor(on.value, [0, 1], [c.outline, c.accent]),
+  }))
+  const thumb = useAnimatedStyle(() => {
+    const size = interpolate(on.value, [0, 1], [16, 24]) + 4 * p.value
+    return {
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      transform: [{ translateX: on.value * 20 + (24 - size) / 2 }],
+      backgroundColor: interpolateColor(on.value, [0, 1], [c.outline, c.onAccent]),
+    }
+  })
   return (
     <Pressable
-      testID={testID}
-      onPress={onPress}
-      disabled={disabled || loading}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      style={({ pressed }) => [
-        styles.btn,
-        small && styles.btnSmall,
-        { backgroundColor: v.bg },
-        (disabled || loading) && { opacity: 0.5 },
-        pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
-        style,
-      ]}
+      onPress={() => {
+        haptic.toggle(!value)
+        onValueChange?.(!value)
+      }}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      disabled={disabled || !onValueChange}
+      hitSlop={8}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled }}
+      style={{ opacity: disabled ? 0.38 : 1 }}
     >
-      {loading ? <ActivityIndicator size="small" color={v.fg} /> : icon}
-      {!!title && <Text style={[styles.btnText, small && { fontSize: 13 }, { color: v.fg }]} numberOfLines={1}>{title}</Text>}
+      <Animated.View style={[{ width: 52, height: 32, borderRadius: 16, borderWidth: 2, justifyContent: 'center', paddingHorizontal: 2 }, track]}>
+        <Animated.View style={[{ alignItems: 'center', justifyContent: 'center' }, thumb]}>
+          {value && <Check size={16} color={c.onAccentContainer} strokeWidth={3} />}
+        </Animated.View>
+      </Animated.View>
     </Pressable>
   )
 }
 
-const variants: Record<Variant, { bg: string; fg: string }> = {
-  primary: { bg: c.white, fg: c.black },
-  accent: { bg: c.accentStrong, fg: c.white },
-  ghost: { bg: 'rgba(255,255,255,0.1)', fg: c.fg },
-  subtle: { bg: 'transparent', fg: c.fg },
-  danger: { bg: 'rgba(248,113,113,0.15)', fg: c.danger },
+interface Seg {
+  value: string
+  label?: string
+  icon?: LucideIcon
 }
 
-export function IconButton({ icon, onPress, label, size = 40, style, active, ...rest }: { icon: ReactNode; onPress?: () => void; label: string; size?: number; style?: StyleProp<ViewStyle>; active?: boolean } & Omit<PressableProps, 'style'>) {
+// Compose's connected ButtonGroup: the pressed button grows and its neighbours give
+// up the space; the selected one becomes a full pill.
+const EXPAND = 0.18
+
+function Segment({ b, selected, first, last, height, grow, onPress, onPressIn, onPressOut }: { b: Seg; selected: boolean; first: boolean; last: boolean; height: number; grow: number; onPress: () => void; onPressIn: () => void; onPressOut: () => void }) {
+  const { c, f } = useTheme()
+  const full = height / 2
+  const sel = useSharedValue(selected ? 1 : 0)
+  const g = useSharedValue(grow)
+  const { p, onPressIn: pin, onPressOut: pout } = usePressValue()
+  useEffect(() => {
+    sel.value = withSpring(selected ? 1 : 0, motion.bouncy)
+  }, [selected, sel])
+  useEffect(() => {
+    g.value = withSpring(grow, motion.bouncy)
+  }, [grow, g])
+  const box = useAnimatedStyle(() => {
+    const inner = interpolate(sel.value, [0, 1], [interpolate(p.value, [0, 1], [8, 4]), full])
+    const l = first ? full : inner
+    const r = last ? full : inner
+    return {
+      flexGrow: g.value,
+      backgroundColor: interpolateColor(sel.value, [0, 1], [c.surface3, c.accent]),
+      borderTopLeftRadius: l,
+      borderBottomLeftRadius: l,
+      borderTopRightRadius: r,
+      borderBottomRightRadius: r,
+    }
+  })
+  const fg = selected ? c.onAccent : c.muted
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={6}
-      style={({ pressed }) => [
-        { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.white : 'rgba(255,255,255,0.1)' },
-        pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] },
-        style,
-      ]}
-      {...rest}
-    >
-      {icon}
-    </Pressable>
+    <Animated.View style={[{ height, overflow: 'hidden', flexBasis: 0 }, box]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => (pin(), onPressIn())}
+        onPressOut={() => (pout(), onPressOut())}
+        accessibilityRole="button"
+        accessibilityLabel={b.label}
+        accessibilityState={{ selected }}
+        android_ripple={{ color: alpha(fg, 0.14) }}
+        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 }}
+      >
+        {b.icon && <b.icon size={18} color={fg} />}
+        {!!b.label && <RNText style={[f.label, { color: fg }]} numberOfLines={1}>{b.label}</RNText>}
+      </Pressable>
+    </Animated.View>
   )
 }
 
-export function Chip({ label, active, onPress, icon }: { label: string; active?: boolean; onPress?: () => void; icon?: ReactNode }) {
+export function SegmentedButtons({ value, onValueChange, buttons, small, style }: { value: string; onValueChange: (v: string) => void; buttons: Seg[]; small?: boolean; style?: StyleProp<ViewStyle> }) {
+  const height = small ? 40 : 48
+  const [pressed, setPressed] = useState(-1)
+  const last = buttons.length - 1
+  const growOf = (i: number) => {
+    if (pressed < 0) return 1
+    if (i === pressed) return 1 + EXPAND
+    if (Math.abs(i - pressed) !== 1) return 1
+    return 1 - EXPAND / ((pressed > 0 ? 1 : 0) + (pressed < last ? 1 : 0))
+  }
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.8 }]}>
-      {icon}
-      <Text style={[styles.chipText, active && { color: c.black }]}>{label}</Text>
-    </Pressable>
+    <View style={[{ flexDirection: 'row', gap: 2 }, style]}>
+      {buttons.map((b, i) => (
+        <Segment
+          key={b.value}
+          b={b}
+          selected={b.value === value}
+          first={i === 0}
+          last={i === last}
+          height={height}
+          grow={growOf(i)}
+          onPressIn={() => setPressed(i)}
+          onPressOut={() => setTimeout(() => setPressed((x) => (x === i ? -1 : x)), 70)}
+          onPress={() => {
+            if (b.value === value) return
+            haptic.tick()
+            onValueChange(b.value)
+          }}
+        />
+      ))}
+    </View>
   )
 }
 
 // ---------- layout ----------
 
+/** M3 top app bar. `transparent` floats a round back button over artwork. */
 export function Header({ title, right, back = true, transparent }: { title?: string; right?: ReactNode; back?: boolean; transparent?: boolean }) {
   const insets = useSafeAreaInsets()
+  const s = useStyles()
+  const { c } = useTheme()
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'))
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 6 }, transparent && { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 10, backgroundColor: 'transparent' }]}>
-      {back && (
-        <IconButton
-          label="Back"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          icon={<ArrowLeft size={20} color={c.fg} />}
-          style={transparent ? { backgroundColor: 'rgba(0,0,0,0.45)' } : undefined}
-        />
-      )}
-      <Text style={[font.h3, { flex: 1, marginLeft: back ? 12 : 4 }]} numberOfLines={1}>{transparent ? '' : title}</Text>
+    <View style={[s.header, { paddingTop: insets.top + 8 }, transparent && s.headerFloat]} pointerEvents="box-none">
+      {back && <IconButton label="Back" onPress={goBack} icon={ArrowLeft} size={44} variant={transparent ? 'overlay' : 'standard'} color={transparent ? undefined : c.fg} />}
+      <Text style={[s.headerTitle, { marginLeft: back ? 4 : 12 }]} numberOfLines={1}>{transparent ? '' : title}</Text>
       {right}
     </View>
   )
 }
 
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: string }) {
+  const { f } = useTheme()
   return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={font.h1}>{children}</Text>
-      {!!sub && <Text style={[font.small, { marginTop: 4 }]}>{sub}</Text>}
+    <View style={{ marginBottom: 18 }}>
+      <Text style={f.display}>{children}</Text>
+      {!!sub && <Text style={[f.small, { marginTop: 6 }]}>{sub}</Text>}
     </View>
   )
 }
 
-export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
+export function SectionTitle({ children, right, style }: { children: ReactNode; right?: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const { f } = useTheme()
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10 }}>
-      <Text style={[font.h2, { flex: 1, fontSize: 18 }]}>{children}</Text>
+    <View style={[{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12, minHeight: 28 }, style]}>
+      <Text style={[f.h2, { flex: 1, fontSize: 20 }]}>{children}</Text>
       {right}
     </View>
   )
 }
 
-export function EmptyState({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
+export function EmptyState({ icon, shape = 'cookie9', title, children, action }: { icon?: LucideIcon; shape?: ShapeName; title: string; children?: ReactNode; action?: ReactNode }) {
+  const { f } = useTheme()
   return (
-    <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 }}>
-      {icon && <View style={styles.emptyIcon}>{icon}</View>}
-      <Text style={[font.h3, { textAlign: 'center' }]}>{title}</Text>
-      {!!children && <Text style={[font.small, { textAlign: 'center', marginTop: 6, lineHeight: 19 }]}>{children}</Text>}
-      {action && <View style={{ marginTop: 18 }}>{action}</View>}
-    </View>
+    <Animated.View entering={FadeIn.duration(250)} style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 28 }}>
+      {icon && <ShapeIcon shape={shape} icon={icon} size={88} tone="secondary" spin={40} style={{ marginBottom: 18 }} />}
+      <Text style={[f.h2, { textAlign: 'center', fontSize: 20 }]}>{title}</Text>
+      {!!children && <Text style={[f.small, { textAlign: 'center', marginTop: 8, lineHeight: 20 }]}>{children}</Text>}
+      {action && <View style={{ marginTop: 20 }}>{action}</View>}
+    </Animated.View>
   )
 }
 
 export function Loading({ style }: { style?: StyleProp<ViewStyle> }) {
   return (
     <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }, style]}>
-      <ActivityIndicator color={c.accent} size="large" />
+      <LoadingIndicator size={56} />
     </View>
   )
 }
 
-export function ProgressBar({ pct, style, color = c.accent }: { pct: number; style?: StyleProp<ViewStyle>; color?: string }) {
+/** Thin progress: a rounded bar, or the Expressive wave while something is happening. */
+export function ProgressBar({ pct, style, color, track, wavy }: { pct: number; style?: StyleProp<ViewStyle>; color?: string; track?: string; wavy?: boolean }) {
+  const { c } = useTheme()
+  if (wavy) return <WavyProgress progress={pct / 100} color={color} trackColor={track} style={style} />
+  const p = Math.max(0, Math.min(100, pct))
   return (
-    <View style={[{ height: 3, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' }, style]}>
-      <View style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: '100%', backgroundColor: color }} />
+    <View style={[{ height: 4, flexDirection: 'row', gap: 3 }, style]}>
+      <View style={{ width: `${p}%`, height: '100%', borderRadius: 2, backgroundColor: color ?? c.accent }} />
+      <View style={{ flex: 1, height: '100%', borderRadius: 2, backgroundColor: track ?? alpha(c.secondaryContainer, 0.9) }} />
     </View>
   )
 }
 
 export function Meta({ items, style }: { items: (string | false | undefined | null)[]; style?: StyleProp<TextStyle> }) {
-  return <Text style={[font.small, style]}>{items.filter(Boolean).join('  ·  ')}</Text>
+  const { f } = useTheme()
+  return <Text style={[f.small, style]}>{items.filter(Boolean).join('  ·  ')}</Text>
 }
 
 export function Img({ source, style, contentFit = 'cover', fallback, transition = 200 }: { source?: ImageSource | string; style?: StyleProp<ViewStyle>; contentFit?: 'cover' | 'contain'; fallback?: ReactNode; transition?: number }) {
+  const { c } = useTheme()
   const [failed, setFailed] = useState(false)
-  if (!source || failed) return <View style={[{ backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, style]}>{fallback}</View>
+  if (!source || failed) return <View style={[{ backgroundColor: c.surface3, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, style]}>{fallback}</View>
   return (
     <Image
       source={source}
-      style={[{ backgroundColor: c.surface2 }, style as never]}
+      style={[{ backgroundColor: c.surface3 }, style as never]}
       contentFit={contentFit}
       transition={transition}
       cachePolicy="memory-disk"
@@ -170,28 +422,96 @@ export function Img({ source, style, contentFit = 'cover', fallback, transition 
 }
 
 export function Avatar({ name, uri, size = 32 }: { name: string; uri?: string; size?: number }) {
+  const { c } = useTheme()
   const initials = name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase()
-  const hue = [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7)
   if (uri) return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `hsl(${hue},45%,35%)`, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: c.white, fontWeight: '700', fontSize: size * 0.38 }}>{initials || '?'}</Text>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.tertiaryContainer, alignItems: 'center', justifyContent: 'center' }}>
+      <RNText style={{ fontFamily: FONT, color: c.onTertiaryContainer, fontWeight: '600', fontSize: size * 0.4 }}>{initials || '?'}</RNText>
     </View>
   )
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.card, style]}>{children}</View>
+  const s = useStyles()
+  return <View style={[s.card, style]}>{children}</View>
 }
 
-/** A settings-style row. */
-export function ListRow({ icon, title, sub, right, onPress, danger }: { icon?: ReactNode; title: string; sub?: string; right?: ReactNode; onPress?: () => void; danger?: boolean }) {
+// One row tile. While a finger rests on it the corners round out, like the
+// Expressive lists in Android settings; a scroll lets go straight away.
+function Tile({ top, bottom, children }: { top: number; bottom: number; children: ReactNode }) {
+  const { c } = useTheme()
+  const p = useSharedValue(0)
+  const start = useRef<{ x: number; y: number } | null>(null)
+  const release = () => {
+    start.current = null
+    p.set(withSpring(0, motion.fastSpatial))
+  }
+  const style = useAnimatedStyle(() => {
+    const t = interpolate(p.value, [0, 1], [top, 24])
+    const b = interpolate(p.value, [0, 1], [bottom, 24])
+    return { borderTopLeftRadius: t, borderTopRightRadius: t, borderBottomLeftRadius: b, borderBottomRightRadius: b }
+  })
   return (
-    <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.row, pressed && { backgroundColor: 'rgba(255,255,255,0.04)' }]}>
-      {icon && <View style={{ width: 28, alignItems: 'center' }}>{icon}</View>}
-      <View style={{ flex: 1, marginLeft: icon ? 10 : 0 }}>
-        <Text style={[font.body, { fontWeight: '500' }, danger && { color: c.danger }]}>{title}</Text>
-        {!!sub && <Text style={[font.small, { marginTop: 2 }]} numberOfLines={2}>{sub}</Text>}
+    <Animated.View
+      onTouchStart={(e: GestureResponderEvent) => {
+        start.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY }
+        p.set(withDelay(60, withSpring(1, motion.fastSpatial)))
+      }}
+      onTouchMove={(e: GestureResponderEvent) => {
+        const st = start.current
+        if (st && Math.abs(e.nativeEvent.pageY - st.y) + Math.abs(e.nativeEvent.pageX - st.x) > 10) release()
+      }}
+      onTouchEnd={release}
+      onTouchCancel={release}
+      style={[{ overflow: 'hidden', backgroundColor: c.surface2 }, style]}
+    >
+      {children}
+    </Animated.View>
+  )
+}
+
+/** A titled block of rows. Each row is its own tile: round outer corners, small ones between. */
+export function Group({ title, children, style }: { title?: string; children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const { c, f } = useTheme()
+  const rows = Children.toArray(children).filter(isValidElement)
+  const last = rows.length - 1
+  if (!rows.length) return null
+  return (
+    <View style={[{ marginBottom: 20 }, style]}>
+      {!!title && <Text style={[f.label, { color: c.accent, paddingHorizontal: 20, marginBottom: 10 }]}>{title}</Text>}
+      <View style={{ marginHorizontal: 16, gap: 2 }}>
+        {rows.map((row, i) => (
+          <Tile key={row.key ?? i} top={i === 0 ? 24 : 6} bottom={i === last ? 24 : 6}>
+            {row}
+          </Tile>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+/** A settings-style row with an icon on an Expressive shape. */
+export function ListRow({
+  icon, shape = 'circle', tone = 'secondary', title, sub, right, onPress, danger, numberOfLines = 2,
+}: {
+  icon?: LucideIcon
+  shape?: ShapeName
+  tone?: Tone
+  title: string
+  sub?: string
+  right?: ReactNode
+  onPress?: () => void
+  danger?: boolean
+  numberOfLines?: number
+}) {
+  const { c, f } = useTheme()
+  return (
+    <Pressable onPress={onPress} disabled={!onPress} android_ripple={{ color: alpha(c.fg, 0.08) }} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 14, minHeight: 64 }}>
+      {icon && <ShapeIcon shape={shape} icon={icon} size={40} tone={danger ? 'error' : tone} />}
+      <View style={{ flex: 1 }}>
+        <Text style={[f.bodyStrong, { fontSize: 16 }, danger && { color: c.danger }]}>{title}</Text>
+        {!!sub && <Text style={[f.small, { marginTop: 2 }]} numberOfLines={numberOfLines}>{sub}</Text>}
       </View>
       {right}
     </Pressable>
@@ -200,16 +520,25 @@ export function ListRow({ icon, title, sub, right, onPress, danger }: { icon?: R
 
 // ---------- sheet ----------
 
+/** M3 bottom sheet. */
 export function Sheet({ open, onClose, children, title, maxHeight = '85%' }: { open: boolean; onClose: () => void; children: ReactNode; title?: string; maxHeight?: `${number}%` | number }) {
   const insets = useSafeAreaInsets()
+  const s = useStyles()
+  const { f } = useTheme()
   return (
-    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12, maxHeight }]}>
-        <View style={styles.grabber} />
-        {!!title && <Text style={[font.h3, { paddingHorizontal: 20, paddingBottom: 8 }]}>{title}</Text>}
-        <ScrollView bounces={false} contentContainerStyle={{ paddingHorizontal: 8 }}>{children}</ScrollView>
-      </View>
+    <Modal visible={open} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      {open && (
+        <>
+          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={s.backdrop}>
+            <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Close" />
+          </Animated.View>
+          <Animated.View entering={SlideInDown.springify().damping(motion.spatial.damping).stiffness(motion.spatial.stiffness)} exiting={SlideOutDown.duration(180)} style={[s.sheet, { paddingBottom: insets.bottom + 12, maxHeight }]}>
+            <View style={s.grabber} />
+            {!!title && <Text style={[f.h2, { paddingHorizontal: 24, paddingBottom: 10, fontSize: 20 }]}>{title}</Text>}
+            <Animated.ScrollView bounces={false} contentContainerStyle={{ paddingHorizontal: 12 }}>{children}</Animated.ScrollView>
+          </Animated.View>
+        </>
+      )}
     </Modal>
   )
 }
@@ -218,38 +547,44 @@ export interface MenuOption {
   label: string
   sub?: string
   selected?: boolean
-  icon?: ReactNode
+  icon?: LucideIcon
   danger?: boolean
   onPress: () => void
 }
 
-/** A list of choices in a bottom sheet. */
+/** A list of choices in a bottom sheet; the picked one sits on a tonal pill. */
 export function MenuSheet({ open, onClose, title, options, note }: { open: boolean; onClose: () => void; title?: string; options: MenuOption[]; note?: string }) {
+  const { c, f } = useTheme()
   return (
     <Sheet open={open} onClose={onClose} title={title}>
-      {options.map((o, i) => (
-        <Pressable
-          key={i}
-          onPress={() => {
-            onClose()
-            o.onPress()
-          }}
-          style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: 'rgba(255,255,255,0.06)' }]}
-        >
-          {o.icon && <View style={{ width: 26 }}>{o.icon}</View>}
-          <View style={{ flex: 1 }}>
-            <Text style={[font.body, o.danger && { color: c.danger }, o.selected && { fontWeight: '700' }]}>{o.label}</Text>
-            {!!o.sub && <Text style={font.small}>{o.sub}</Text>}
-          </View>
-          {o.selected && <Check size={18} color={c.accent} />}
-        </Pressable>
-      ))}
-      {!!note && <Text style={[font.small, { padding: 12 }]}>{note}</Text>}
+      {options.map((o, i) => {
+        const fg = o.danger ? c.danger : o.selected ? c.onSecondaryContainer : c.fg
+        return (
+          <Pressable
+            key={i}
+            onPress={() => {
+              haptic.tick()
+              onClose()
+              o.onPress()
+            }}
+            android_ripple={{ color: alpha(c.fg, 0.08) }}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 56, paddingVertical: 8, borderRadius: 28, gap: 14, marginBottom: 2, backgroundColor: o.selected ? c.secondaryContainer : 'transparent', overflow: 'hidden' }}
+          >
+            {o.icon && <o.icon size={22} color={o.danger ? c.danger : o.selected ? c.onSecondaryContainer : c.muted} />}
+            <View style={{ flex: 1 }}>
+              <Text style={[f.body, { color: fg, fontSize: 16 }, o.selected && { fontWeight: '600' }]}>{o.label}</Text>
+              {!!o.sub && <Text style={[f.small, o.selected && { color: alpha(c.onSecondaryContainer, 0.8) }]}>{o.sub}</Text>}
+            </View>
+            {o.selected && <Check size={20} color={c.onSecondaryContainer} />}
+          </Pressable>
+        )
+      })}
+      {!!note && <Text style={[f.small, { padding: 16 }]}>{note}</Text>}
     </Sheet>
   )
 }
 
-// ---------- toasts ----------
+// ---------- snackbars ----------
 
 type Toast = { id: number; text: string; kind: 'ok' | 'error' | 'info' }
 let toasts: Toast[] = []
@@ -276,41 +611,37 @@ export function Toaster() {
   )
   const insets = useSafeAreaInsets()
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 80, alignItems: 'center', gap: 8 }}>
+    <View pointerEvents="none" style={{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 88, alignItems: 'center', gap: 8 }}>
       {list.map((t) => <ToastView key={t.id} t={t} />)}
     </View>
   )
 }
 
 function ToastView({ t }: { t: Toast }) {
-  const a = useRef(new Animated.Value(0)).current
-  useEffect(() => {
-    Animated.spring(a, { toValue: 1, useNativeDriver: true }).start()
-  }, [a])
+  const { c, f } = useTheme()
   const Icon = t.kind === 'error' ? CircleAlert : t.kind === 'info' ? Info : Check
-  const color = t.kind === 'error' ? c.danger : t.kind === 'info' ? c.info : c.success
   return (
-    <Animated.View style={[styles.toast, { opacity: a, transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-      <Icon size={16} color={color} />
-      <Text style={{ color: c.fg, fontSize: 14, flexShrink: 1 }}>{t.text}</Text>
+    <Animated.View
+      entering={SlideInDown.springify().damping(motion.fastSpatial.damping).stiffness(motion.fastSpatial.stiffness)}
+      exiting={FadeOut.duration(180)}
+      layout={LinearTransition.springify()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.inverse, paddingHorizontal: 16, minHeight: 48, paddingVertical: 12, borderRadius: 16, maxWidth: 440, alignSelf: 'stretch', elevation: 3 }}
+    >
+      <Icon size={18} color={t.kind === 'error' ? (c.dark ? '#b3261e' : '#f2b8b5') : c.inverseAccent} />
+      <Text style={[f.body, { color: c.onInverse, flexShrink: 1, fontSize: 14 }]}>{t.text}</Text>
     </Animated.View>
   )
 }
 
-const styles = StyleSheet.create({
-  btn: { height: 46, paddingHorizontal: 18, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  btnSmall: { height: 36, paddingHorizontal: 14 },
-  btnText: { fontSize: 15, fontWeight: '700' },
-  chip: { height: 34, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  chipActive: { backgroundColor: c.white },
-  chipText: { color: c.fg, fontSize: 13, fontWeight: '600' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, backgroundColor: c.bg },
-  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  card: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
-  backdrop: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: c.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 12 },
-  menuRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 14, borderRadius: 12, gap: 6 },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.surface3, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line, maxWidth: 420 },
-})
+const useStyles = makeStyles((c, f) => ({
+  field: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 56, borderRadius: radius.md, backgroundColor: c.surface3, paddingHorizontal: 16 },
+  fieldInput: { flex: 1, color: c.fg, fontSize: 16, paddingVertical: 0, fontFamily: FONT },
+  search: { borderRadius: radius.pill, backgroundColor: c.surface4 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 8, minHeight: 64, backgroundColor: c.bg },
+  headerFloat: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 10, backgroundColor: 'transparent', paddingHorizontal: 12 },
+  headerTitle: { ...f.h2, flex: 1, fontWeight: '500' },
+  card: { backgroundColor: c.surface2, borderRadius: 24, overflow: 'hidden' },
+  backdrop: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: c.scrim },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 6 },
+  grabber: { alignSelf: 'center', width: 32, height: 4, borderRadius: 2, backgroundColor: c.outline, marginTop: 10, marginBottom: 16, opacity: 0.6 },
+}))

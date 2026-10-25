@@ -1,9 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AppState, View } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
-import * as SystemUI from 'expo-system-ui'
 import * as Network from 'expo-network'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { QueryClient, QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query'
@@ -12,10 +11,9 @@ import { loadPrefs } from '../src/lib/prefs'
 import { flushProgress, restoreDownloads } from '../src/lib/downloads'
 import { Toaster } from '../src/components/ui'
 import { ApiError } from '../src/api/client'
-import { c } from '../src/theme'
+import { ThemeProvider, useTheme } from '../src/theme'
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
-SystemUI.setBackgroundColorAsync(c.bg).catch(() => {})
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -39,14 +37,22 @@ onlineManager.setEventListener((setOnline) => {
 
 function Root() {
   const { ready, user } = useAuth()
+  const { c } = useTheme()
+  // Wait for the saved theme so the first frame isn't the wrong colours.
+  const [prefsReady, setPrefsReady] = useState(false)
 
   useEffect(() => {
-    loadPrefs().then(() => restoreDownloads())
+    loadPrefs()
+      .then(() => {
+        setPrefsReady(true)
+        return restoreDownloads()
+      })
+      .catch(() => setPrefsReady(true))
   }, [])
 
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {})
-  }, [ready])
+    if (ready && prefsReady) SplashScreen.hideAsync().catch(() => {})
+  }, [ready, prefsReady])
 
   // Send progress made on downloads while offline.
   useEffect(() => {
@@ -60,7 +66,7 @@ function Root() {
     }
   }, [user])
 
-  if (!ready) return <View style={{ flex: 1, backgroundColor: c.bg }} />
+  if (!ready || !prefsReady) return <View style={{ flex: 1, backgroundColor: c.bg }} />
   const signedIn = !!user
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right', orientation: 'portrait_up' }}>
@@ -84,16 +90,27 @@ function Root() {
   )
 }
 
+function Shell() {
+  const { c } = useTheme()
+  return (
+    <>
+      <StatusBar style={c.dark ? 'light' : 'dark'} />
+      <View style={{ flex: 1, backgroundColor: c.bg }}>
+        <Root />
+        <Toaster />
+      </View>
+    </>
+  )
+}
+
 export default function Layout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={qc}>
         <AuthProvider>
-          <StatusBar style="light" />
-          <View style={{ flex: 1, backgroundColor: c.bg }}>
-            <Root />
-            <Toaster />
-          </View>
+          <ThemeProvider>
+            <Shell />
+          </ThemeProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

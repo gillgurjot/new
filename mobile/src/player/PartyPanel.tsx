@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, Share, TextInput, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { Check, Copy, LogOut, Send, Share2, X } from 'lucide-react-native'
 import type { PartyMessage } from '../api/types'
-import { Avatar, IconButton } from '../components/ui'
+import { Avatar, IconButton, Text } from '../components/ui'
 import { useUser } from '../lib/auth'
-import { c } from '../theme'
+import { FONT, makeStyles, useTheme } from '../theme'
 import { type PartyConn, REACTIONS, inviteLink } from './party'
 
 /** Side panel with who's watching, the invite link, chat and reactions. */
 export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyConn; itemId: number; onClose: () => void; onLeave: () => void }) {
   const me = useUser()
+  const { c } = useTheme()
+  const styles = useStyles()
   const [text, setText] = useState('')
   const [copied, setCopied] = useState(false)
   const list = useRef<FlatList<PartyMessage>>(null)
@@ -44,8 +46,8 @@ export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyCo
             <Text style={styles.sub}>{party.connected ? `${party.members.length} watching` : 'Reconnecting…'}</Text>
           </View>
         </View>
-        <IconButton label="Leave the party" size={34} onPress={onLeave} icon={<LogOut size={16} color={c.fg} />} />
-        <IconButton label="Close" size={34} onPress={onClose} icon={<X size={16} color={c.fg} />} style={{ marginLeft: 6 }} />
+        <IconButton label="Leave the party" size={40} onPress={onLeave} icon={LogOut} variant="standard" />
+        <IconButton label="Close" size={40} onPress={onClose} icon={X} style={{ marginLeft: 4 }} />
       </View>
 
       <View style={styles.members}>
@@ -60,11 +62,11 @@ export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyCo
       <View style={styles.link}>
         <Text style={styles.linkText} numberOfLines={1}>{link.replace(/^https?:\/\//, '')}</Text>
         <Pressable onPress={copy} style={styles.linkBtn} accessibilityLabel="Copy invite link">
-          {copied ? <Check size={14} color={c.fg} /> : <Copy size={14} color={c.fg} />}
-          <Text style={{ color: c.fg, fontSize: 12, fontWeight: '600' }}>{copied ? 'Copied' : 'Copy'}</Text>
+          {copied ? <Check size={14} color={c.onSecondaryContainer} /> : <Copy size={14} color={c.onSecondaryContainer} />}
+          <Text style={styles.linkBtnText}>{copied ? 'Copied' : 'Copy'}</Text>
         </Pressable>
         <Pressable onPress={share} style={[styles.linkBtn, { paddingHorizontal: 8 }]} accessibilityLabel="Share invite">
-          <Share2 size={14} color={c.fg} />
+          <Share2 size={14} color={c.onSecondaryContainer} />
         </Pressable>
       </View>
 
@@ -72,7 +74,7 @@ export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyCo
         ref={list}
         data={party.chat}
         keyExtractor={(m) => String(m.id)}
-        style={{ flex: 1, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}
+        style={{ flex: 1 }}
         contentContainerStyle={{ padding: 12, gap: 8 }}
         ListEmptyComponent={<Text style={[styles.sub, { textAlign: 'center', paddingVertical: 16 }]}>Send the link to someone. Play, pause and seeking stay in sync for everyone.</Text>}
         renderItem={({ item }) => <ChatLine m={item} mine={item.userId === me.id} />}
@@ -98,7 +100,7 @@ export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyCo
           blurOnSubmit={false}
         />
         <Pressable onPress={send} style={[styles.send, !text.trim() && { opacity: 0.4 }]} accessibilityLabel="Send">
-          <Send size={16} color={c.black} />
+          <Send size={16} color={c.onAccent} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -106,6 +108,8 @@ export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyCo
 }
 
 function ChatLine({ m, mine }: { m: PartyMessage; mine: boolean }) {
+  const { c } = useTheme()
+  const styles = useStyles()
   if (m.system) return <Text style={[styles.sub, { textAlign: 'center', fontSize: 11 }]}>{m.text}</Text>
   if (m.emoji) {
     return (
@@ -120,7 +124,7 @@ function ChatLine({ m, mine }: { m: PartyMessage; mine: boolean }) {
       {!mine && <Avatar name={m.name} uri={m.avatar} size={22} />}
       <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
         {!mine && <Text style={styles.bubbleName}>{m.name}</Text>}
-        <Text style={{ color: c.fg, fontSize: 14, lineHeight: 19 }}>{m.text}</Text>
+        <Text style={{ color: mine ? c.onAccentContainer : c.fg, fontSize: 14, lineHeight: 19 }}>{m.text}</Text>
       </View>
     </View>
   )
@@ -129,6 +133,8 @@ function ChatLine({ m, mine }: { m: PartyMessage; mine: boolean }) {
 /** Floating reactions and recent chat shown over the video while the panel is closed. */
 export function PartyOverlay({ party, open }: { party: PartyConn; open: boolean }) {
   const me = useUser()
+  const { c } = useTheme()
+  const styles = useStyles()
   const [recent, setRecent] = useState<PartyMessage[]>([])
   const [floats, setFloats] = useState<{ id: number; emoji: string; x: number }[]>([])
   const seen = useRef<number | null>(null)
@@ -195,25 +201,26 @@ function Floater({ emoji, x }: { emoji: string; x: number }) {
   )
 }
 
-const styles = StyleSheet.create({
-  panel: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 340, backgroundColor: '#0e0e13', borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.line, zIndex: 30 },
-  head: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 },
-  title: { color: c.fg, fontWeight: '700', fontSize: 16 },
-  sub: { color: c.muted, fontSize: 12 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  members: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 14, paddingBottom: 10 },
-  member: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 28, paddingLeft: 3, paddingRight: 10, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)' },
-  memberName: { color: c.fg, fontSize: 12, fontWeight: '500', maxWidth: 90 },
-  link: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 14, marginBottom: 10, padding: 5, paddingLeft: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  linkText: { flex: 1, color: 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: Platform.OS === 'android' ? 'monospace' : 'Menlo' },
-  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, paddingHorizontal: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.1)' },
-  reactions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10, paddingTop: 6 },
+const useStyles = makeStyles((c, f) => ({
+  panel: { position: 'absolute', top: 8, right: 8, bottom: 8, width: 340, backgroundColor: c.surface2, borderRadius: 28, overflow: 'hidden', zIndex: 30 },
+  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, paddingRight: 10, paddingTop: 14, paddingBottom: 10 },
+  title: { ...f.h3, fontSize: 18 },
+  sub: { ...f.tiny },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  members: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingBottom: 12 },
+  member: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 4, paddingRight: 12, borderRadius: 16, backgroundColor: c.surface4 },
+  memberName: { ...f.label, fontSize: 12.5, maxWidth: 90 },
+  link: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 16, marginBottom: 10, padding: 6, paddingLeft: 14, borderRadius: 24, backgroundColor: c.surface4 },
+  linkText: { flex: 1, color: c.muted, fontSize: 11, fontFamily: Platform.OS === 'android' ? 'monospace' : 'Menlo' },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: c.secondaryContainer },
+  linkBtnText: { ...f.label, fontSize: 12.5, color: c.onSecondaryContainer },
+  reactions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 6 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 },
-  input: { flex: 1, height: 40, borderRadius: 20, backgroundColor: c.surface2, color: c.fg, paddingHorizontal: 14, fontSize: 14 },
-  send: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.white, alignItems: 'center', justifyContent: 'center' },
-  bubble: { maxWidth: '80%', borderRadius: 16, paddingHorizontal: 11, paddingVertical: 7 },
-  mine: { backgroundColor: c.accentStrong, borderBottomRightRadius: 5 },
-  theirs: { backgroundColor: 'rgba(255,255,255,0.08)', borderBottomLeftRadius: 5 },
-  bubbleName: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '700', marginBottom: 1 },
-  toastMsg: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14 },
-})
+  input: { flex: 1, height: 44, borderRadius: 22, backgroundColor: c.surface4, color: c.fg, paddingHorizontal: 16, fontSize: 14, fontFamily: FONT },
+  send: { width: 44, height: 44, borderRadius: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
+  bubble: { maxWidth: '80%', borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8 },
+  mine: { backgroundColor: c.accentContainer, borderBottomRightRadius: 6 },
+  theirs: { backgroundColor: c.surface4, borderBottomLeftRadius: 6 },
+  bubbleName: { ...f.labelSmall, fontSize: 11, color: c.accent, marginBottom: 1 },
+  toastMsg: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18 },
+}), true)

@@ -1,14 +1,17 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Film, RefreshCw, ScanSearch, Tv } from 'lucide-react-native'
 import { api, errorText, post } from '../../src/api/client'
 import type { Library, ScanStatus } from '../../src/api/types'
-import { Button, Card, Header, Loading, ProgressBar, toast } from '../../src/components/ui'
+import { Button, Card, Header, Loading, ProgressBar, Text, toast } from '../../src/components/ui'
+import { ShapeIcon } from '../../src/components/expressive'
 import { plural, timeAgo } from '../../src/lib/format'
-import { c, font } from '../../src/theme'
+import { makeStyles, useTheme } from '../../src/theme'
 
 export default function AdminLibraries() {
   const qc = useQueryClient()
+  const { f: font } = useTheme()
+  const styles = useStyles()
   const q = useQuery({
     queryKey: ['admin', 'libraries'],
     queryFn: () => api<{ libraries: Library[]; scans: ScanStatus[] }>('/api/admin/libraries'),
@@ -29,14 +32,14 @@ export default function AdminLibraries() {
       {q.isLoading ? (
         <Loading />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}>
           {q.data?.libraries.map((l) => {
             const scan = q.data.scans?.find((s) => s.libraryId === l.id && s.running)
             const Icon = l.type === 'tv' ? Tv : Film
             return (
-              <Card key={l.id} style={{ padding: 16, gap: 10 }}>
+              <Card key={l.id} style={{ padding: 18, gap: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={styles.icon}><Icon size={20} color={c.accent} /></View>
+                  <ShapeIcon shape={l.type === 'tv' ? 'cookie9' : 'clover4'} icon={Icon} size={44} tone="primary" />
                   <View style={{ flex: 1 }}>
                     <Text style={font.h3}>{l.name}</Text>
                     <Text style={font.small}>{plural(l.itemCount, 'title')} · scanned {timeAgo(l.lastScan)}</Text>
@@ -46,12 +49,12 @@ export default function AdminLibraries() {
                 {scan ? (
                   <View style={{ gap: 6 }}>
                     <Text style={font.small}>{scan.phase} · {scan.done}/{scan.total}{scan.added ? ` · ${scan.added} new` : ''}</Text>
-                    <ProgressBar pct={scan.total ? (scan.done / scan.total) * 100 : 5} />
+                    <ProgressBar pct={scan.total ? (scan.done / scan.total) * 100 : 5} wavy />
                   </View>
                 ) : (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Button small title="Scan for new files" icon={<ScanSearch size={16} color={c.fg} />} onPress={() => act(`/api/admin/libraries/${l.id}/scan`, `Scanning ${l.name}`)} style={{ flex: 1 }} />
-                    <Button small title="Refresh details" icon={<RefreshCw size={15} color={c.fg} />} onPress={() => act(`/api/admin/libraries/${l.id}/refresh`, `Refreshing ${l.name}`)} style={{ flex: 1 }} />
+                    <Button size="s" title="Scan" icon={ScanSearch} onPress={() => act(`/api/admin/libraries/${l.id}/scan`, `Scanning ${l.name}`)} style={{ flex: 1 }} />
+                    <Button size="s" variant="outlined" title="Refresh details" icon={RefreshCw} onPress={() => act(`/api/admin/libraries/${l.id}/refresh`, `Refreshing ${l.name}`)} style={{ flex: 1 }} />
                   </View>
                 )}
               </Card>
@@ -64,7 +67,6 @@ export default function AdminLibraries() {
   )
 }
 
-const styles = StyleSheet.create({
-  icon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(157,140,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  path: { color: c.muted, fontSize: 12, fontFamily: 'monospace' },
-})
+const useStyles = makeStyles((c, f) => ({
+  path: { ...f.tiny, fontFamily: 'monospace' },
+}))

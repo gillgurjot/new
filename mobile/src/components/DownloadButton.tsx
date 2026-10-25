@@ -1,27 +1,28 @@
 import { useState } from 'react'
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, StyleSheet, View } from 'react-native'
 import { CircleCheck, Download as DownloadIcon, Pause, Play, RotateCcw, Trash2, TriangleAlert } from 'lucide-react-native'
 import Svg, { Circle } from 'react-native-svg'
 import { api, errorText } from '../api/client'
 import type { ItemDetail } from '../api/types'
 import { bytes } from '../lib/format'
 import { pauseDownload, removeDownload, resumeDownload, retryDownload, startDownload, useDownload } from '../lib/downloads'
-import { c } from '../theme'
-import { MenuSheet, toast } from './ui'
+import { alpha, makeStyles, useTheme } from '../theme'
+import { MenuSheet, Text, toast } from './ui'
 import { deviceProfile } from '../lib/profile'
+import { playItem } from './cards'
 
 function canPlayOffline(codec: string, pixFmt?: string) {
   if (!deviceProfile().videoCodecs.includes(codec)) return false
   return !(codec === 'h264' && pixFmt?.includes('10'))
 }
-import { playItem } from './cards'
 
 function Ring({ pct, size }: { pct: number; size: number }) {
+  const { c } = useTheme()
   const r = size / 2 - 2.5
   const len = 2 * Math.PI * r
   return (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-      <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.18)" strokeWidth={2.5} fill="none" />
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={alpha(c.onSecondaryContainer, 0.18)} strokeWidth={2.5} fill="none" />
       <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.accent} strokeWidth={2.5} fill="none" strokeDasharray={`${len}`} strokeDashoffset={len * (1 - pct / 100)} strokeLinecap="round" rotation={-90} origin={`${size / 2}, ${size / 2}`} />
     </Svg>
   )
@@ -32,10 +33,12 @@ function Ring({ pct, size }: { pct: number; size: number }) {
  * `label` shows the text under the button (title page); compact for episode rows.
  */
 export default function DownloadButton({ itemId, size, label, compact, videoCodec, pixFmt }: { itemId: number; size?: number; label?: boolean; compact?: boolean; videoCodec?: string; pixFmt?: string }) {
+  const { c } = useTheme()
+  const st = useStyles()
   const d = useDownload(itemId)
   const [menu, setMenu] = useState(false)
   const [busy, setBusy] = useState(false)
-  const s = compact ? 36 : 44
+  const s = compact ? 40 : 48
   const pct = d && d.total ? (d.bytes / d.total) * 100 : 0
 
   const start = async () => {
@@ -75,13 +78,13 @@ export default function DownloadButton({ itemId, size, label, compact, videoCode
       { text: 'Remove', style: 'destructive', onPress: () => removeDownload(itemId) },
     ])
 
-  let icon = <DownloadIcon size={compact ? 18 : 20} color={compact ? c.dim : c.fg} />
+  let icon = <DownloadIcon size={compact ? 18 : 20} color={compact ? c.muted : c.onSecondaryContainer} />
   let text = 'Download'
   if (d?.state === 'downloading') {
-    icon = <Text style={styles.pct}>{Math.floor(pct)}%</Text>
+    icon = <Text style={st.pct}>{Math.floor(pct)}%</Text>
     text = 'Downloading'
   } else if (d?.state === 'paused') {
-    icon = <Pause size={16} color={c.fg} />
+    icon = <Pause size={16} color={c.onSecondaryContainer} />
     text = 'Paused'
   } else if (d?.state === 'done') {
     icon = <CircleCheck size={compact ? 18 : 20} color={c.accent} />
@@ -96,15 +99,15 @@ export default function DownloadButton({ itemId, size, label, compact, videoCode
       <Pressable
         onPress={() => (d ? setMenu(true) : start())}
         disabled={busy}
-        style={({ pressed }) => [{ alignItems: 'center', width: compact ? s : 64 }, pressed && { opacity: 0.7 }]}
+        style={({ pressed }) => [{ alignItems: 'center', width: compact ? s : 72 }, pressed && { opacity: 0.7 }]}
         accessibilityLabel={text}
         hitSlop={4}
       >
-        <View style={[styles.circle, { width: s, height: s, borderRadius: s / 2 }, compact && { backgroundColor: 'transparent' }]}>
+        <View style={[st.circle, { width: s, height: s, borderRadius: s / 2 }, compact && { backgroundColor: 'transparent' }]}>
           {(d?.state === 'downloading' || d?.state === 'paused') && <Ring pct={pct} size={s} />}
           {icon}
         </View>
-        {label && <Text style={styles.label} numberOfLines={1}>{text}</Text>}
+        {label && <Text style={st.label} numberOfLines={1}>{text}</Text>}
       </Pressable>
       <MenuSheet
         open={menu}
@@ -118,19 +121,19 @@ export default function DownloadButton({ itemId, size, label, compact, videoCode
               : d?.error
         }
         options={[
-          ...(d?.state === 'done' ? [{ label: 'Play downloaded copy', icon: <Play size={18} color={c.fg} />, onPress: () => playItem(itemId) }] : []),
-          ...(d?.state === 'downloading' ? [{ label: 'Pause', icon: <Pause size={18} color={c.fg} />, onPress: () => pauseDownload(itemId) }] : []),
-          ...(d?.state === 'paused' ? [{ label: 'Resume', icon: <Play size={18} color={c.fg} />, onPress: () => resumeDownload(itemId) }] : []),
-          ...(d?.state === 'failed' ? [{ label: 'Try again', icon: <RotateCcw size={18} color={c.fg} />, onPress: () => retryDownload(itemId).catch((e) => toast(errorText(e), 'error')) }] : []),
-          { label: d?.state === 'done' ? 'Remove download' : 'Cancel download', danger: true, icon: <Trash2 size={18} color={c.danger} />, onPress: d?.state === 'done' ? confirmDelete : () => removeDownload(itemId) },
+          ...(d?.state === 'done' ? [{ label: 'Play downloaded copy', icon: Play, onPress: () => playItem(itemId) }] : []),
+          ...(d?.state === 'downloading' ? [{ label: 'Pause', icon: Pause, onPress: () => pauseDownload(itemId) }] : []),
+          ...(d?.state === 'paused' ? [{ label: 'Resume', icon: Play, onPress: () => resumeDownload(itemId) }] : []),
+          ...(d?.state === 'failed' ? [{ label: 'Try again', icon: RotateCcw, onPress: () => retryDownload(itemId).catch((e) => toast(errorText(e), 'error')) }] : []),
+          { label: d?.state === 'done' ? 'Remove download' : 'Cancel download', danger: true, icon: Trash2, onPress: d?.state === 'done' ? confirmDelete : () => removeDownload(itemId) },
         ]}
       />
     </>
   )
 }
 
-const styles = StyleSheet.create({
-  circle: { backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  pct: { color: c.fg, fontSize: 10, fontWeight: '800' },
-  label: { color: c.muted, fontSize: 11, marginTop: 6 },
-})
+const useStyles = makeStyles((c, f) => ({
+  circle: { backgroundColor: c.secondaryContainer, alignItems: 'center', justifyContent: 'center' },
+  pct: { ...f.labelSmall, fontSize: 10.5, color: c.onSecondaryContainer, fontWeight: '700' },
+  label: { ...f.labelSmall, marginTop: 6 },
+}))

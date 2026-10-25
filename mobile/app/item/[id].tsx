@@ -1,21 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { FlatList, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Check, ChevronDown, Play, Plus, RefreshCw, RotateCcw, Star, Users } from 'lucide-react-native'
-import { api, del, errorText, imagePath, landscapePath, personPath, post, posterPath, src } from '../../src/api/client'
+import { Check, ChevronDown, Heart, Play, RefreshCw, RotateCcw, Star, Users, type LucideIcon } from 'lucide-react-native'
+import { api, del, errorText, imagePath, landscapePath, personPath, post, src } from '../../src/api/client'
 import type { Item, ItemDetail, UserData } from '../../src/api/types'
 import DownloadButton from '../../src/components/DownloadButton'
 import { playItem, startParty } from '../../src/components/cards'
-import { Chip, Header, Img, Loading, ProgressBar, toast } from '../../src/components/ui'
+import { Button, Chip, Header, IconButton, Img, Loading, ProgressBar, Text, toast } from '../../src/components/ui'
+import { Shape } from '../../src/components/expressive'
 import { bytes, channelLabel, episodeLabel, formatRuntime, formatTime, langLabel, plural, progressPct, resolutionLabel } from '../../src/lib/format'
 import { useDownload } from '../../src/lib/downloads'
 import { useUser } from '../../src/lib/auth'
-import { c, font, radius } from '../../src/theme'
+import { alpha, makeStyles, useTheme } from '../../src/theme'
 
 export default function ItemScreen() {
   const { id, season } = useLocalSearchParams<{ id: string; season?: string }>()
+  const { c, f: font } = useTheme()
   const qc = useQueryClient()
   const dl = useDownload(Number(id))
   const q = useQuery({ queryKey: ['item', Number(id)], queryFn: () => api<ItemDetail>(`/api/items/${id}`), refetchOnMount: 'always' })
@@ -40,6 +42,8 @@ export default function ItemScreen() {
 
 function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChange: () => void; season?: number; offline: boolean }) {
   const user = useUser()
+  const { c, f: font } = useTheme()
+  const styles = useStyles()
   const { width } = useWindowDimensions()
   const isPlayable = item.type === 'movie' || item.type === 'episode'
   const backdropId = item.type === 'movie' || item.type === 'series' ? item.id : item.seriesId
@@ -96,7 +100,7 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
         <View style={{ height: heroH }}>
           <Img source={src(backdrop)} style={StyleSheet.absoluteFill} transition={300} />
-          <LinearGradient colors={['rgba(9,9,13,0.5)', 'transparent', 'rgba(9,9,13,0.6)', c.bg]} locations={[0, 0.3, 0.7, 1]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[alpha(c.bg, 0.5), alpha(c.bg, 0), alpha(c.bg, 0.6), c.bg]} locations={[0, 0.3, 0.7, 1]} style={StyleSheet.absoluteFill} />
         </View>
         <View style={{ paddingHorizontal: 16, marginTop: -70 }}>
           {!!item.seriesTitle && (
@@ -120,29 +124,26 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
             {isPlayable && !!formatRuntime(item.runtime, item.duration) && <Text style={styles.meta}>{formatRuntime(item.runtime, item.duration)}</Text>}
             {item.type === 'series' && !!item.childCount && <Text style={styles.meta}>{plural(item.childCount, 'season')}</Text>}
             {item.media && <Text style={styles.tag}>{resolutionLabel(item.media.width, item.media.height)}</Text>}
-            {!!item.media?.hdr && <Text style={[styles.tag, { color: '#fde68a', borderColor: 'rgba(252,211,77,0.5)' }]}>{item.media.hdr === 'dovi' ? 'Dolby Vision' : item.media.hdr.toUpperCase()}</Text>}
+            {!!item.media?.hdr && <Text style={[styles.tag, styles.tagHdr]}>{item.media.hdr === 'dovi' ? 'Dolby Vision' : item.media.hdr.toUpperCase()}</Text>}
           </View>
 
           {playTarget && (
-            <Pressable onPress={() => playItem(playTarget.id)} style={({ pressed }) => [styles.play, pressed && { opacity: 0.85 }]} accessibilityLabel={playLabel}>
-              <Play size={20} color={c.black} fill={c.black} />
-              <Text style={styles.playText}>{playLabel}</Text>
-            </Pressable>
+            <Button variant="filled" size="l" title={playLabel} icon={Play} iconFill onPress={() => playItem(playTarget.id)} />
           )}
           {playTarget && resumePos > 30 && (playTarget.duration || 0) > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
-              <ProgressBar pct={(resumePos / (playTarget.duration || 1)) * 100} color={c.white} style={{ flex: 1 }} />
+              <ProgressBar pct={(resumePos / (playTarget.duration || 1)) * 100} style={{ flex: 1 }} />
               <Text style={font.tiny}>{formatTime(Math.max(0, (playTarget.duration || 0) - resumePos))} left</Text>
             </View>
           )}
 
           <View style={styles.actions}>
-            {playTarget && resumePos > 30 && <Action label="Start over" onPress={() => playItem(playTarget.id, { t: '0' })} icon={<RotateCcw size={20} color={c.fg} />} />}
-            {playTarget && !offline && <Action label="Together" onPress={() => startParty(playTarget.id, resumePos > 30 ? resumePos : 0)} icon={<Users size={20} color={c.fg} />} />}
-            {!offline && <Action label="My List" on={ud?.favorite} onPress={() => toggle('favorite', !ud?.favorite)} icon={ud?.favorite ? <Check size={20} color={c.black} /> : <Plus size={20} color={c.fg} />} />}
-            {!offline && <Action label="Watched" on={ud?.played} onPress={() => toggle('played', !ud?.played)} icon={<Check size={20} color={ud?.played ? c.black : c.fg} />} />}
+            {playTarget && resumePos > 30 && <Action label="Start over" onPress={() => playItem(playTarget.id, { t: '0' })} icon={RotateCcw} />}
+            {playTarget && !offline && <Action label="Together" onPress={() => startParty(playTarget.id, resumePos > 30 ? resumePos : 0)} icon={Users} />}
+            {!offline && <Action label="My List" on={ud?.favorite} onPress={() => toggle('favorite', !ud?.favorite)} icon={Heart} fill={!!ud?.favorite} />}
+            {!offline && <Action label="Watched" on={ud?.played} onPress={() => toggle('played', !ud?.played)} icon={Check} />}
             {isPlayable && item.media && (user.canDownload || dl) && <DownloadButton itemId={item.id} size={item.media.size} videoCodec={item.media.videoCodec} pixFmt={item.media.pixFmt} label />}
-            {user.isAdmin && !offline && (item.type === 'movie' || item.type === 'series') && <Action label="Refresh" onPress={refreshMeta} icon={<RefreshCw size={20} color={c.fg} />} />}
+            {user.isAdmin && !offline && (item.type === 'movie' || item.type === 'series') && <Action label="Refresh" onPress={refreshMeta} icon={RefreshCw} />}
           </View>
 
           {!!item.tagline && <Text style={styles.tagline}>{item.tagline}</Text>}
@@ -150,13 +151,13 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
           {item.genres.length > 0 && <Text style={[font.small, { marginTop: 12 }]}>{item.genres.join(' · ')}</Text>}
           {audio.length > 1 && (
             <Text style={[font.small, { marginTop: 6 }]}>
-              Audio: <Text style={{ color: 'rgba(255,255,255,0.85)' }}>{audio.map((a) => [langLabel(a.language), channelLabel(a.channels)].filter(Boolean).join(' ')).join(' · ')}</Text>
+              Audio: <Text style={{ color: c.dim }}>{audio.map((a) => [langLabel(a.language), channelLabel(a.channels)].filter(Boolean).join(' ')).join(' · ')}</Text>
             </Text>
           )}
           {directors.length > 0 && (
             <Text style={[font.small, { marginTop: 6 }]}>
               {directors[0].role === 'creator' ? 'Created by ' : 'Directed by '}
-              <Text style={{ color: 'rgba(255,255,255,0.85)' }}>{directors.map((d) => d.name).join(', ')}</Text>
+              <Text style={{ color: c.dim }}>{directors.map((d) => d.name).join(', ')}</Text>
             </Text>
           )}
         </View>
@@ -165,7 +166,7 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
 
         {cast.length > 0 && (
           <View style={{ marginTop: 30 }}>
-            <Text style={[font.h2, { fontSize: 18, paddingHorizontal: 16, marginBottom: 12 }]}>{item.type === 'episode' ? 'Guest stars' : 'Cast'}</Text>
+            <Text style={[font.h2, { fontSize: 20, paddingHorizontal: 16, marginBottom: 12 }]}>{item.type === 'episode' ? 'Guest stars' : 'Cast'}</Text>
             <FlatList
               horizontal
               data={cast}
@@ -174,7 +175,7 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
               contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
               renderItem={({ item: p }) => (
                 <View style={{ width: 84 }}>
-                  <Img source={src(personPath(p.profile))} style={{ width: 84, height: 84, borderRadius: 42 }} fallback={<Text style={{ color: c.muted, fontSize: 24, fontWeight: '700' }}>{p.name[0]}</Text>} />
+                  <Img source={src(personPath(p.profile))} style={{ width: 84, height: 84, borderRadius: 42 }} fallback={<Text style={[font.h2, { color: c.muted }]}>{p.name[0]}</Text>} />
                   <Text style={styles.castName} numberOfLines={1}>{p.name}</Text>
                   <Text style={[font.tiny, { textAlign: 'center' }]} numberOfLines={1}>{p.character}</Text>
                 </View>
@@ -190,16 +191,19 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
   )
 }
 
-function Action({ label, icon, onPress, on }: { label: string; icon: React.ReactNode; onPress: () => void; on?: boolean }) {
+function Action({ label, icon, onPress, on, fill }: { label: string; icon: LucideIcon; onPress: () => void; on?: boolean; fill?: boolean }) {
+  const styles = useStyles()
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ alignItems: 'center', width: 64 }, pressed && { opacity: 0.7 }]} accessibilityLabel={label} accessibilityState={{ selected: on }}>
-      <View style={[styles.circle, on && { backgroundColor: c.white }]}>{icon}</View>
+    <View style={{ alignItems: 'center', width: 72 }}>
+      <IconButton label={label} icon={icon} onPress={onPress} selected={on} fill={fill} size={48} variant="tonal" />
       <Text style={styles.actionLabel} numberOfLines={1}>{label}</Text>
-    </Pressable>
+    </View>
   )
 }
 
 function Overview({ text }: { text?: string }) {
+  const { c } = useTheme()
+  const styles = useStyles()
   const [open, setOpen] = useState(false)
   if (!text) return null
   const long = text.length > 200
@@ -208,8 +212,8 @@ function Overview({ text }: { text?: string }) {
       <Text style={styles.overview} numberOfLines={open || !long ? undefined : 4}>{text}</Text>
       {long && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-          <Text style={{ color: c.dim, fontWeight: '600', fontSize: 13 }}>{open ? 'Less' : 'More'}</Text>
-          <ChevronDown size={14} color={c.dim} style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+          <Text style={styles.more}>{open ? 'Less' : 'More'}</Text>
+          <ChevronDown size={16} color={c.accent} style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
         </View>
       )}
     </Pressable>
@@ -238,15 +242,19 @@ function Seasons({ item, episodes, initialSeason }: { item: ItemDetail; episodes
 
 function EpisodeRow({ ep }: { ep: Item }) {
   const user = useUser()
+  const { c, f: font } = useTheme()
+  const styles = useStyles()
   const dl = useDownload(ep.id)
   const pct = progressPct(ep)
   return (
     <View style={styles.ep}>
       <Pressable onPress={() => playItem(ep.id)} style={({ pressed }) => [styles.epThumb, pressed && { opacity: 0.8 }]} accessibilityLabel={`Play ${ep.title}`}>
         <Img source={src(landscapePath(ep, 150))} style={StyleSheet.absoluteFill} />
-        <View style={styles.epPlay}><Play size={14} color={c.white} fill={c.white} /></View>
-        {ep.userData?.played && <View style={styles.epDone}><Check size={11} color={c.white} strokeWidth={3} /></View>}
-        {pct > 0 && <ProgressBar pct={pct} color={c.white} style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }} />}
+        <Shape name="cookie9" size={34} color={c.accentContainer} style={styles.epPlay}>
+          <Play size={14} color={c.onAccentContainer} fill={c.onAccentContainer} style={{ marginLeft: 2 }} />
+        </Shape>
+        {ep.userData?.played && <View style={styles.epDone}><Check size={12} color={c.onAccent} strokeWidth={3} /></View>}
+        {pct > 0 && <ProgressBar pct={pct} track="rgba(255,255,255,0.35)" style={{ position: 'absolute', left: 8, right: 8, bottom: 6 }} />}
       </Pressable>
       <Pressable onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(ep.id) } })} style={{ flex: 1, paddingVertical: 2 }}>
         <Text style={font.tiny}>
@@ -261,12 +269,14 @@ function EpisodeRow({ ep }: { ep: Item }) {
 }
 
 function MediaInfo({ item }: { item: ItemDetail }) {
+  const { f: font } = useTheme()
+  const styles = useStyles()
   const m = item.media!
   const audio = m.streams.filter((s) => s.type === 'audio')
   const subs = [...m.streams.filter((s) => s.type === 'subtitle'), ...(m.sidecars || [])]
   return (
     <View style={{ paddingHorizontal: 16, marginTop: 30 }}>
-      <Text style={[font.h2, { fontSize: 18, marginBottom: 12 }]}>File details</Text>
+      <Text style={[font.h2, { fontSize: 20, marginBottom: 12 }]}>File details</Text>
       <View style={styles.info}>
         <InfoRow k="Video" v={`${m.videoCodec.toUpperCase()}${m.videoProfile ? ` (${m.videoProfile})` : ''} · ${m.width}×${m.height}${m.hdr ? ` · ${m.hdr.toUpperCase()}` : ''}`} />
         <InfoRow k="File" v={`${m.container.toUpperCase()} · ${(m.bitrate / 1e6).toFixed(1)} Mbps · ${bytes(m.size)}`} />
@@ -278,33 +288,33 @@ function MediaInfo({ item }: { item: ItemDetail }) {
 }
 
 function InfoRow({ k, v, last }: { k: string; v: string; last?: boolean }) {
+  const { c, f: font } = useTheme()
   return (
-    <View style={[{ flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 14, gap: 12 }, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
+    <View style={[{ flexDirection: 'row', paddingVertical: 14, paddingHorizontal: 16, gap: 12 }, !last && { borderBottomWidth: 2, borderBottomColor: c.bg }]}>
       <Text style={[font.small, { width: 76 }]}>{k}</Text>
       <Text style={[font.body, { flex: 1, fontSize: 14, lineHeight: 20 }]}>{v}</Text>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  series: { color: c.accent, fontWeight: '700', fontSize: 14, marginBottom: 4 },
-  title: { color: c.fg, fontSize: 30, fontWeight: '800', letterSpacing: -0.8, marginBottom: 8 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 },
-  meta: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '500' },
-  tag: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '700', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
-  play: { height: 50, borderRadius: radius.pill, backgroundColor: c.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  playText: { color: c.black, fontSize: 16, fontWeight: '800' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 4, marginTop: 18, marginBottom: 18 },
-  circle: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { color: c.muted, fontSize: 11, marginTop: 6 },
-  tagline: { color: 'rgba(255,255,255,0.6)', fontStyle: 'italic', marginBottom: 6, fontSize: 14 },
-  overview: { color: 'rgba(255,255,255,0.82)', fontSize: 15, lineHeight: 22 },
-  castName: { color: c.fg, fontSize: 12.5, fontWeight: '600', textAlign: 'center', marginTop: 8 },
-  ep: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
-  epThumb: { width: 132, height: 74, borderRadius: radius.md, overflow: 'hidden', backgroundColor: c.surface2 },
-  epPlay: { position: 'absolute', top: '50%', left: '50%', marginLeft: -15, marginTop: -15, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 2 },
-  epDone: { position: 'absolute', top: 5, right: 5, width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  epTitle: { color: c.fg, fontSize: 14.5, fontWeight: '600', marginTop: 2 },
-  epOverview: { color: 'rgba(255,255,255,0.55)', fontSize: 12.5, marginTop: 3, lineHeight: 17 },
-  info: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-})
+const useStyles = makeStyles((c, f) => ({
+  series: { ...f.label, color: c.accent, marginBottom: 4 },
+  title: { ...f.h1, fontSize: 32, lineHeight: 38, marginBottom: 8 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 18 },
+  meta: { ...f.small, color: c.dim, fontWeight: '500' },
+  tag: { ...f.labelSmall, fontSize: 11, color: c.onSecondaryContainer, backgroundColor: c.secondaryContainer, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
+  tagHdr: { color: c.onTertiaryContainer, backgroundColor: c.tertiaryContainer },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 2, marginTop: 20, marginBottom: 18 },
+  actionLabel: { ...f.labelSmall, marginTop: 6 },
+  tagline: { ...f.body, color: c.muted, fontStyle: 'italic', marginBottom: 6, fontSize: 14 },
+  overview: { ...f.body, color: c.dim },
+  more: { ...f.label, color: c.accent, fontSize: 13 },
+  castName: { ...f.label, fontSize: 12.5, textAlign: 'center', marginTop: 8 },
+  ep: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 },
+  epThumb: { width: 136, height: 76, borderRadius: 16, overflow: 'hidden', backgroundColor: c.surface3 },
+  epPlay: { position: 'absolute', top: '50%', left: '50%', marginLeft: -17, marginTop: -17 },
+  epDone: { position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: 7, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
+  epTitle: { ...f.bodyStrong, fontSize: 15, marginTop: 2 },
+  epOverview: { ...f.tiny, fontSize: 12.5, marginTop: 3, lineHeight: 17 },
+  info: { backgroundColor: c.surface2, borderRadius: 24, overflow: 'hidden' },
+}))

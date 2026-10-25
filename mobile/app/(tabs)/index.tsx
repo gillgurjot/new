@@ -1,20 +1,23 @@
 import { useState } from 'react'
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
-import { CloudOff, Download } from 'lucide-react-native'
+import { CloudOff, Download, Sparkle } from 'lucide-react-native'
 import { ApiError, api } from '../../src/api/client'
 import type { HomeData } from '../../src/api/types'
 import Hero from '../../src/components/Hero'
 import { Row } from '../../src/components/cards'
-import { Button, Chip, EmptyState, Loading } from '../../src/components/ui'
+import { Button, Chip, EmptyState, Loading, Text } from '../../src/components/ui'
+import { Shape } from '../../src/components/expressive'
 import { useDownloads } from '../../src/lib/downloads'
-import { c } from '../../src/theme'
+import { alpha, makeStyles, useTheme } from '../../src/theme'
 
 export default function Home() {
   const insets = useSafeAreaInsets()
+  const { c } = useTheme()
+  const styles = useStyles()
   const q = useQuery({ queryKey: ['home'], queryFn: () => api<HomeData>('/api/home') })
   const [refreshing, setRefreshing] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -27,12 +30,13 @@ export default function Home() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', paddingTop: insets.top }}>
         <EmptyState
-          icon={<CloudOff size={28} color={c.muted} />}
+          icon={CloudOff}
+          shape="cookie4"
           title={offline ? 'Can’t reach Lumen' : 'Something went wrong'}
           action={
             <View style={{ gap: 10, alignItems: 'center' }}>
-              <Button title="Try again" variant="primary" onPress={() => q.refetch()} loading={q.isFetching} />
-              {downloads.length > 0 && <Button title={`Watch downloads (${downloads.length})`} icon={<Download size={18} color={c.fg} />} onPress={() => router.navigate('/downloads')} />}
+              <Button title="Try again" variant="filled" onPress={() => q.refetch()} loading={q.isFetching} />
+              {downloads.length > 0 && <Button title={`Watch downloads (${downloads.length})`} icon={Download} onPress={() => router.navigate('/downloads')} />}
             </View>
           }
         >
@@ -52,8 +56,9 @@ export default function Home() {
           <RefreshControl
             refreshing={refreshing}
             progressViewOffset={insets.top + 50}
-            tintColor={c.white}
-            colors={[c.accentStrong]}
+            tintColor={c.accent}
+            colors={[c.onAccentContainer]}
+            progressBackgroundColor={c.accentContainer}
             onRefresh={async () => {
               setRefreshing(true)
               await q.refetch()
@@ -76,9 +81,11 @@ export default function Home() {
 
       {/* Top bar: brand and library shortcuts, fading in a backdrop as you scroll. */}
       <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-        <LinearGradient colors={scrolled ? [c.bg, 'rgba(9,9,13,0.92)'] : ['rgba(0,0,0,0.6)', 'transparent']} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <LinearGradient colors={scrolled ? [c.bg, alpha(c.bg, 0.94)] : [alpha(c.bg, 0.7), alpha(c.bg, 0)]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.brandRow}>
-          <LinearGradient colors={['#a78bfa', '#f472b6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logoDot} />
+          <Shape name="sunny" size={28} color={c.accent} spin={24}>
+            <Sparkle size={14} color={c.onAccent} fill={c.onAccent} />
+          </Shape>
           <Text style={styles.brand}>Lumen</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
@@ -91,9 +98,8 @@ export default function Home() {
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c, f) => ({
   top: { position: 'absolute', left: 0, right: 0, top: 0, paddingBottom: 10 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
-  logoDot: { width: 22, height: 22, borderRadius: 11 },
-  brand: { color: c.white, fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
-})
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginBottom: 10 },
+  brand: { ...f.h2, fontSize: 24, letterSpacing: -0.4 },
+}))

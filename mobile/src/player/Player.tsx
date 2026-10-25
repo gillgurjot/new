@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { BackHandler, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import Video, { SelectedTrackType, type OnLoadData, type OnProgressData, type VideoRef } from 'react-native-video'
 import { File } from 'expo-file-system'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -14,7 +14,11 @@ import { type Download, queueProgress, saveOfflinePosition, useDownloads } from 
 import { episodeLabel, formatTime } from '../lib/format'
 import { getPrefs, qualityOptions, setPrefs, usePrefs } from '../lib/prefs'
 import { deviceProfile, safeProfile } from '../lib/profile'
-import { c } from '../theme'
+import { FONT, alpha, makeStyles, useTheme } from '../theme'
+import { Text } from '../components/ui'
+import { LoadingIndicator, Shape, usePressScale } from '../components/expressive'
+import { haptic } from '../lib/haptics'
+import Animated from 'react-native-reanimated'
 import { PartyOverlay, PartyPanel } from './PartyPanel'
 import { partyPosition, useParty } from './party'
 import SeekBar, { useTrickplay } from './SeekBar'
@@ -70,6 +74,8 @@ function localInfo(d: Download, start: number, audioLang: string): PlaybackInfo 
 export default function Player({ itemId, startTime, download, partyId, partyPanel, onExit, onNext, onStartParty, onLeaveParty }: Props) {
   const me = useUser()
   const prefs = usePrefs()
+  const { pc: c } = useTheme()
+  const styles = useStyles()
   const insets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
   const local = !!download
@@ -400,7 +406,22 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
   // ---------- intro / credits / up next ----------
 
   const chapters = info?.chapters || []
-  const intro = chapters.find((ch) => /intro|opening|recap|^op$/i.test(ch.title) && time >= ch.start && time < ch.end - 1)
+  // Intro and recap: found by the server (audio fingerprints across a season) or imported
+  // from Jellyfin's Intro Skipper; chapter names are the fallback.
+  const segments = useMemo(() => {
+    const m = info?.media
+    const out: { start: number; end: number; label: string }[] = []
+    if (m?.recapEnd) out.push({ start: m.recapStart ?? 0, end: m.recapEnd, label: 'Skip recap' })
+    if (m?.introEnd) out.push({ start: m.introStart ?? 0, end: m.introEnd, label: 'Skip intro' })
+    if (!out.length) {
+      for (const ch of chapters) {
+        if (/recap|previously/i.test(ch.title)) out.push({ start: ch.start, end: ch.end, label: 'Skip recap' })
+        else if (/intro|opening|^op$/i.test(ch.title)) out.push({ start: ch.start, end: ch.end, label: 'Skip intro' })
+      }
+    }
+    return out.filter((x) => x.end - x.start >= 3)
+  }, [info?.media, chapters])
+  const intro = segments.find((x) => time >= x.start && time < x.end - 1)
   const credits = useMemo(() => {
     const ch = chapters.find((x) => /credits|ending|^ed$|outro/i.test(x.title) && x.start > duration * 0.5)
     if (ch) return { start: ch.start, end: ch.end }
@@ -408,6 +429,8 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
     return m?.creditsStart ? { start: m.creditsStart, end: m.creditsEnd || duration } : null
   }, [chapters, info?.media, duration])
   const inCredits = !!credits && time >= credits.start && time < credits.end - 2
+  // "Next episode" only once the credits roll, or in the last 30 seconds when we don't know where they start.
+  const showNext = !!next && !!duration && (credits ? inCredits : time >= duration - 30)
   const creditsSkipped = useRef(false)
   useEffect(() => {
     creditsSkipped.current = false
@@ -427,11 +450,13 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
   }
   const introSkipped = useRef<number | null>(null)
   useEffect(() => {
-    if (intro && prefs.skipIntro && introSkipped.current !== intro.start) {
+    // Wait until the video has loaded, or the seek is lost and the intro plays anyway.
+    if (intro && prefs.skipIntro && !loading && introSkipped.current !== intro.start) {
       introSkipped.current = intro.start
       seek(intro.end)
+      showFlash(intro.label === 'Skip recap' ? 'Skipped recap' : 'Skipped intro', 1200)
     }
-  }, [intro, prefs.skipIntro, seek])
+  }, [intro, prefs.skipIntro, loading, seek, showFlash])
 
   useEffect(() => {
     if (!next || upNextDismissed || !duration || !prefs.autoplayNext) return
@@ -623,7 +648,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
 
       {(loading || buffering) && !error && (
         <View pointerEvents="none" style={styles.center}>
-          <ActivityIndicator size="large" color={c.white} />
+          <LoadingIndicator size={64} color={c.accent} />
         </View>
       )}
 
@@ -640,7 +665,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
           <LinearGradient pointerEvents="none" colors={['transparent', 'rgba(0,0,0,0.85)']} style={[styles.shade, { bottom: 0, height: 170 }]} />
 
           <View style={[styles.top, { paddingLeft: padH, paddingRight: padH }]}>
-            <Btn label="Back" onPress={onExit}><ArrowLeft size={24} color={c.white} /></Btn>
+            <Btn label="Back" onPress={onExit}><ArrowLeft size={24} color={c.fg} /></Btn>
             <View style={{ flex: 1, marginHorizontal: 12 }}>
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
               {!!sub && <Text style={styles.subtitle} numberOfLines={1}>{sub}</Text>}
@@ -648,32 +673,29 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
             </View>
             {!local && (
               <Btn label="Watch together" onPress={() => (party ? setPartyOpen((o) => !o) : onStartParty(nowAbs()))} active={!!party}>
-                <Users size={22} color={party ? c.black : c.white} />
+                <Users size={22} color={party ? c.onAccent : c.fg} />
                 {party && party.members.length > 1 && <Text style={styles.count}>{party.members.length}</Text>}
               </Btn>
             )}
-            {audios.length > 0 && <Btn label="Audio" onPress={() => setMenu('audio')}><AudioLines size={22} color={c.white} /></Btn>}
-            <Btn label="Subtitles" onPress={() => setMenu('subs')} active={subIndex >= 0}><Captions size={22} color={subIndex >= 0 ? c.black : c.white} /></Btn>
-            <Btn label="Settings" onPress={() => setMenu('settings')}><Gauge size={22} color={c.white} /></Btn>
-            <Btn label={fill ? 'Fit to screen' : 'Zoom to fill'} onPress={() => setFill((f) => !f)}>{fill ? <Shrink size={21} color={c.white} /> : <Expand size={21} color={c.white} />}</Btn>
-            <Btn label="Picture in picture" onPress={() => video.current?.enterPictureInPicture()}><PictureInPicture2 size={21} color={c.white} /></Btn>
+            {audios.length > 0 && <Btn label="Audio" onPress={() => setMenu('audio')}><AudioLines size={22} color={c.fg} /></Btn>}
+            <Btn label="Subtitles" onPress={() => setMenu('subs')} active={subIndex >= 0}><Captions size={22} color={subIndex >= 0 ? c.onAccent : c.fg} /></Btn>
+            <Btn label="Settings" onPress={() => setMenu('settings')}><Gauge size={22} color={c.fg} /></Btn>
+            <Btn label={fill ? 'Fit to screen' : 'Zoom to fill'} onPress={() => setFill((f) => !f)} active={fill}>{fill ? <Shrink size={21} color={c.onAccent} /> : <Expand size={21} color={c.fg} />}</Btn>
+            <Btn label="Picture in picture" onPress={() => video.current?.enterPictureInPicture()}><PictureInPicture2 size={21} color={c.fg} /></Btn>
           </View>
 
           {!loading && !error && (
             <View style={styles.middle} pointerEvents="box-none">
-              <Btn label="Back 10 seconds" big onPress={() => { seek(nowAbs() - 10); poke() }}><RotateCcw size={30} color={c.white} /></Btn>
-              <Btn label={paused ? 'Play' : 'Pause'} huge onPress={() => { togglePlay(); poke() }}>
-                {paused ? <Play size={38} color={c.white} fill={c.white} /> : <Pause size={38} color={c.white} fill={c.white} />}
-              </Btn>
-              <Btn label="Forward 10 seconds" big onPress={() => { seek(nowAbs() + 10); poke() }}><RotateCw size={30} color={c.white} /></Btn>
+              <Btn label="Back 10 seconds" big onPress={() => { seek(nowAbs() - 10); poke() }}><RotateCcw size={30} color={c.fg} /></Btn>
+              <PlayButton paused={paused} onPress={() => { haptic.tick(); togglePlay(); poke() }} />
+              <Btn label="Forward 10 seconds" big onPress={() => { seek(nowAbs() + 10); poke() }}><RotateCw size={30} color={c.fg} /></Btn>
             </View>
           )}
 
           <View style={[styles.bottom, { paddingLeft: padH, paddingRight: padH, paddingBottom: Math.max(insets.bottom, 14) }]}>
             <View style={styles.pills}>
-              {intro && <Pill label="Skip intro" onPress={() => seek(intro.end)} />}
-              {inCredits && <Pill label={next ? 'Next episode' : 'Skip credits'} onPress={skipCredits} />}
-              {next && !inCredits && <Pill label="Next episode" icon onPress={() => goNext(next.id)} subtle />}
+              {intro && <Pill label={intro.label} onPress={() => seek(intro.end)} />}
+              {showNext ? <Pill label="Next episode" icon onPress={() => goNext(next!.id)} /> : inCredits && <Pill label="Skip credits" onPress={skipCredits} />}
             </View>
             <SeekBar
               time={time}
@@ -689,10 +711,10 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
       )}
 
       {/* Skip buttons stay visible with controls hidden */}
-      {!showUi && !pip && (intro || inCredits) && (
+      {!showUi && !pip && upNext === null && (intro || inCredits || showNext) && (
         <View style={[styles.floatingPill, { right: padH }]}>
-          {intro && <Pill label="Skip intro" onPress={() => seek(intro.end)} />}
-          {inCredits && <Pill label={next ? 'Next episode' : 'Skip credits'} onPress={skipCredits} />}
+          {intro && <Pill label={intro.label} onPress={() => seek(intro.end)} />}
+          {showNext ? <Pill label="Next episode" icon onPress={() => goNext(next!.id)} /> : inCredits && <Pill label="Skip credits" onPress={skipCredits} />}
         </View>
       )}
 
@@ -700,19 +722,25 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
         <View style={[styles.upNext, { right: padH }]}>
           <Text style={styles.upNextLabel}>Next episode in {upNext}</Text>
           <Text style={styles.upNextTitle} numberOfLines={1}>{episodeLabel(next)} · {next.title}</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-            <Pressable onPress={() => goNext(next.id)} style={[styles.upBtn, { backgroundColor: c.white }]}><Text style={{ color: c.black, fontWeight: '700' }}>Play now</Text></Pressable>
-            <Pressable onPress={() => { setUpNext(null); setUpNextDismissed(true) }} style={styles.upBtn}><Text style={{ color: c.fg, fontWeight: '600' }}>Cancel</Text></Pressable>
+          <View style={styles.countdown}>
+            <View style={[styles.countdownFill, { width: `${((10 - upNext) / 10) * 100}%` }]} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            <Pressable onPress={() => goNext(next.id)} style={[styles.upBtn, styles.upBtnMain]}>
+              <Play size={16} color={c.onAccent} fill={c.onAccent} />
+              <Text style={[styles.upBtnText, { color: c.onAccent }]}>Play now</Text>
+            </Pressable>
+            <Pressable onPress={() => { setUpNext(null); setUpNextDismissed(true) }} style={styles.upBtn}><Text style={styles.upBtnText}>Cancel</Text></Pressable>
           </View>
         </View>
       )}
 
       {!!error && (
         <View style={[styles.center, { backgroundColor: 'rgba(0,0,0,0.7)', padding: 30 }]}>
-          <Text style={{ color: c.fg, fontSize: 16, textAlign: 'center', marginBottom: 18, maxWidth: 420 }}>{error}</Text>
+          <Text style={styles.errorText}>{error}</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={() => { retries.current = 0; start({ startTime: nowAbs() || time }) }} style={[styles.upBtn, { backgroundColor: c.white, paddingHorizontal: 22 }]}><Text style={{ color: c.black, fontWeight: '700' }}>Try again</Text></Pressable>
-            <Pressable onPress={onExit} style={[styles.upBtn, { paddingHorizontal: 22 }]}><Text style={{ color: c.fg, fontWeight: '600' }}>Close</Text></Pressable>
+            <Pressable onPress={() => { retries.current = 0; start({ startTime: nowAbs() || time }) }} style={[styles.upBtn, styles.upBtnMain, { paddingHorizontal: 22 }]}><Text style={[styles.upBtnText, { color: c.onAccent }]}>Try again</Text></Pressable>
+            <Pressable onPress={onExit} style={[styles.upBtn, { paddingHorizontal: 22 }]}><Text style={styles.upBtnText}>Close</Text></Pressable>
           </View>
         </View>
       )}
@@ -721,10 +749,10 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
       {menu && (
         <View style={styles.menuWrap}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenu(null)} />
-          <View style={[styles.menu, { paddingRight: Math.max(insets.right, 12) }]}>
+          <View style={[styles.menu, { right: Math.max(insets.right, 8) }]}>
             <View style={styles.menuHead}>
               <Text style={styles.menuTitle}>{menu === 'subs' ? 'Subtitles' : menu === 'audio' ? 'Audio' : 'Playback'}</Text>
-              <Pressable onPress={() => setMenu(null)} hitSlop={10} accessibilityLabel="Close"><X size={20} color={c.fg} /></Pressable>
+              <Btn label="Close" onPress={() => setMenu(null)}><X size={22} color={c.fg} /></Btn>
             </View>
             <ScrollView>
               {menu === 'subs' && (
@@ -733,7 +761,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
                   {subs.map((s) => <Opt key={s.index} label={s.label} sub={!s.url ? (local ? 'Not in the download' : 'Picture subtitles · shown in the video') : undefined} on={s.index === subIndex} onPress={() => { chooseSubtitle(s.index); setMenu(null) }} />)}
                   {!subs.length && <Text style={styles.note}>This title has no subtitles{local ? ' saved with the download' : ''}.</Text>}
                   <Text style={styles.section}>Size</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14 }}>
+                  <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20 }}>
                     {(['small', 'medium', 'large'] as const).map((s) => <Seg key={s} label={s[0].toUpperCase() + s.slice(1)} on={prefs.subtitleSize === s} onPress={() => setPrefs({ subtitleSize: s })} />)}
                   </View>
                   <Opt label="Background behind text" on={prefs.subtitleBackground} onPress={() => setPrefs({ subtitleBackground: !prefs.subtitleBackground })} />
@@ -748,7 +776,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
               {menu === 'settings' && (
                 <>
                   <Text style={styles.section}>Speed</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 14 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20 }}>
                     {SPEEDS.map((s) => <Seg key={s} label={`${s}×`} on={speed === s} onPress={() => setSpeed(s)} />)}
                   </View>
                   {!local && (
@@ -777,89 +805,133 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
   )
 }
 
-function Btn({ children, onPress, label, big, huge, active }: { children: React.ReactNode; onPress: () => void; label: string; big?: boolean; huge?: boolean; active?: boolean }) {
-  const s = huge ? 76 : big ? 60 : 44
+function Btn({ children, onPress, label, big, active }: { children: React.ReactNode; onPress: () => void; label: string; big?: boolean; active?: boolean }) {
+  const { pc: c } = useTheme()
+  const { style, onPressIn, onPressOut } = usePressScale(0.1)
+  const s = big ? 60 : 44
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      hitSlop={6}
-      style={({ pressed }) => [
-        { width: s, height: s, borderRadius: s / 2, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
-        (huge || big) && { backgroundColor: 'rgba(0,0,0,0.35)' },
-        active && { backgroundColor: c.white },
-        pressed && { backgroundColor: 'rgba(255,255,255,0.15)', transform: [{ scale: 0.94 }] },
-      ]}
-    >
-      {children}
-    </Pressable>
+    <Animated.View style={style}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        accessibilityLabel={label}
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        hitSlop={6}
+        style={({ pressed }) => [
+          { width: s, height: s, borderRadius: active ? s * 0.3 : s / 2, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+          big && { backgroundColor: 'rgba(0,0,0,0.38)' },
+          active && { backgroundColor: c.accent },
+          pressed && !active && { backgroundColor: 'rgba(255,255,255,0.16)' },
+        ]}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
   )
 }
 
-function Pill({ label, onPress, icon, subtle }: { label: string; onPress: () => void; icon?: boolean; subtle?: boolean }) {
+// The big play/pause: a scalloped Expressive shape while paused, a circle while playing.
+function PlayButton({ paused, onPress }: { paused: boolean; onPress: () => void }) {
+  const { pc: c } = useTheme()
+  const { style, onPressIn, onPressOut } = usePressScale(0.08)
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.pill, subtle && styles.pillSubtle, pressed && { opacity: 0.8 }]}>
-      {icon && <SkipForward size={15} color={subtle ? c.white : c.black} fill={subtle ? c.white : c.black} />}
-      <Text style={[styles.pillText, subtle && { color: c.white }]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={style}>
+      <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} accessibilityLabel={paused ? 'Play' : 'Pause'} accessibilityRole="button" hitSlop={8}>
+        <Shape name={paused ? 'cookie9' : 'circle'} size={84} color={c.accentContainer}>
+          {paused ? <Play size={36} color={c.onAccentContainer} fill={c.onAccentContainer} style={{ marginLeft: 4 }} /> : <Pause size={34} color={c.onAccentContainer} fill={c.onAccentContainer} />}
+        </Shape>
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+function Pill({ label, onPress, icon }: { label: string; onPress: () => void; icon?: boolean }) {
+  const { pc: c } = useTheme()
+  const styles = useStyles()
+  const { style, onPressIn, onPressOut } = usePressScale(0.06)
+  return (
+    <Animated.View style={style}>
+      <Pressable
+        onPress={() => {
+          haptic.tick()
+          onPress()
+        }}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.pill}
+        android_ripple={{ color: alpha(c.onAccent, 0.15) }}
+      >
+        <SkipForward size={16} color={c.onAccent} fill={icon ? c.onAccent : 'none'} />
+        <Text style={styles.pillText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   )
 }
 
 function Opt({ label, sub, on, onPress }: { label: string; sub?: string; on?: boolean; onPress: () => void }) {
+  const { pc: c } = useTheme()
+  const styles = useStyles()
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.opt, pressed && { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
-      <View style={{ width: 24 }}>{on && <Check size={18} color={c.accent} />}</View>
+    <Pressable onPress={onPress} android_ripple={{ color: alpha(c.fg, 0.08) }} style={[styles.opt, on && { backgroundColor: c.secondaryContainer }]}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.optText, on && { fontWeight: '700' }]}>{label}</Text>
+        <Text style={[styles.optText, on && { color: c.onSecondaryContainer, fontWeight: '600' }]}>{label}</Text>
         {!!sub && <Text style={styles.optSub}>{sub}</Text>}
       </View>
+      {on && <Check size={18} color={c.onSecondaryContainer} />}
     </Pressable>
   )
 }
 
 function Seg({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  const { pc: c } = useTheme()
+  const styles = useStyles()
   return (
-    <Pressable onPress={onPress} style={[styles.seg, on && { backgroundColor: c.white }]}>
-      <Text style={{ color: on ? c.black : c.fg, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+    <Pressable onPress={onPress} style={[styles.seg, on && { backgroundColor: c.accent, borderRadius: 18 }]}>
+      <Text style={[styles.segText, on && { color: c.onAccent }]}>{label}</Text>
     </Pressable>
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c, f) => ({
   root: { flex: 1, backgroundColor: c.black },
   center: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   shade: { position: 'absolute', left: 0, right: 0, height: 120 },
   top: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingTop: 14, gap: 2 },
-  title: { color: c.white, fontSize: 17, fontWeight: '700' },
-  subtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 1 },
-  badge: { color: c.accent, fontSize: 11, fontWeight: '700', marginTop: 2 },
-  count: { color: c.black, fontSize: 11, fontWeight: '800', marginLeft: 2 },
+  title: { ...f.title, fontWeight: '700', color: c.white },
+  subtitle: { ...f.small, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  badge: { ...f.labelSmall, color: c.accent, marginTop: 2 },
+  count: { ...f.labelSmall, color: c.onAccent, fontWeight: '700', marginLeft: 2 },
   middle: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 48 },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  pills: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginBottom: 6, minHeight: 4 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40, paddingHorizontal: 16, borderRadius: 10, backgroundColor: c.white },
-  pillSubtle: { backgroundColor: 'rgba(255,255,255,0.14)' },
-  pillText: { color: c.black, fontWeight: '800', fontSize: 14 },
+  pills: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginBottom: 8, minHeight: 4 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, paddingHorizontal: 20, borderRadius: 24, backgroundColor: c.accent, overflow: 'hidden' },
+  pillText: { ...f.label, fontSize: 15, color: c.onAccent },
   floatingPill: { position: 'absolute', bottom: 28, flexDirection: 'row', gap: 8 },
   subs: { position: 'absolute', left: 60, right: 60, alignItems: 'center', gap: 2 },
-  cue: { color: c.white, textAlign: 'center', fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.95)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 }, paddingHorizontal: 8 },
-  cueBg: { backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, textShadowRadius: 0 },
+  cue: { fontFamily: FONT, color: c.white, textAlign: 'center', fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.95)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 }, paddingHorizontal: 8 },
+  cueBg: { backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, textShadowRadius: 0 },
   flashWrap: { position: 'absolute', top: '22%', left: 0, right: 0, alignItems: 'center' },
-  flash: { color: c.white, fontWeight: '700', fontSize: 15, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 14, overflow: 'hidden' },
-  upNext: { position: 'absolute', bottom: 120, width: 280, padding: 14, borderRadius: 16, backgroundColor: 'rgba(20,20,26,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  upNextLabel: { color: c.muted, fontSize: 12, fontWeight: '600' },
-  upNextTitle: { color: c.fg, fontSize: 15, fontWeight: '700', marginTop: 3 },
-  upBtn: { height: 38, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
-  menuWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 40 },
-  menu: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 330, backgroundColor: c.surface, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.line, paddingTop: 12 },
-  menuHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 },
-  menuTitle: { color: c.fg, fontSize: 17, fontWeight: '700' },
-  section: { color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  opt: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, marginHorizontal: 4, borderRadius: 10 },
-  optText: { color: c.fg, fontSize: 15 },
-  optSub: { color: c.muted, fontSize: 12, marginTop: 2 },
-  seg: { height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  note: { color: c.muted, fontSize: 12.5, paddingHorizontal: 16, paddingVertical: 10, lineHeight: 18 },
-})
-
+  flash: { ...f.label, fontSize: 15, color: c.onInverse, backgroundColor: c.inverse, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
+  upNext: { position: 'absolute', bottom: 120, width: 300, padding: 18, borderRadius: 28, backgroundColor: c.surface3 },
+  upNextLabel: { ...f.labelSmall, color: c.accent },
+  upNextTitle: { ...f.bodyStrong, fontSize: 16, marginTop: 4 },
+  countdown: { height: 4, borderRadius: 2, backgroundColor: c.secondaryContainer, marginTop: 12, overflow: 'hidden' },
+  countdownFill: { height: '100%', borderRadius: 2, backgroundColor: c.accent },
+  upBtn: { height: 40, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: c.secondaryContainer },
+  upBtnMain: { backgroundColor: c.accent, flex: 1 },
+  upBtnText: { ...f.label, color: c.onSecondaryContainer },
+  errorText: { ...f.body, fontSize: 16, textAlign: 'center', marginBottom: 18, maxWidth: 420 },
+  menuWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 40, backgroundColor: 'rgba(0,0,0,0.3)' },
+  menu: { position: 'absolute', top: 8, right: 8, bottom: 8, width: 340, backgroundColor: c.surface2, borderRadius: 28, paddingTop: 12, overflow: 'hidden' },
+  menuHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
+  menuTitle: { ...f.h2, fontSize: 20 },
+  section: { ...f.label, color: c.accent, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
+  opt: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 52, paddingVertical: 10, marginHorizontal: 8, borderRadius: 26, gap: 10, overflow: 'hidden' },
+  optText: { ...f.body, fontSize: 15 },
+  optSub: { ...f.tiny, marginTop: 2 },
+  seg: { height: 36, paddingHorizontal: 16, borderRadius: 10, backgroundColor: c.surface4, alignItems: 'center', justifyContent: 'center' },
+  segText: { ...f.label, fontSize: 13.5 },
+  note: { ...f.tiny, fontSize: 12.5, paddingHorizontal: 20, paddingVertical: 10, lineHeight: 18 },
+}), true)

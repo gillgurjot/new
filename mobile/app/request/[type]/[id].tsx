@@ -1,20 +1,22 @@
 import { useState } from 'react'
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Check, CircleCheck, ExternalLink, Play, Plus, Star } from 'lucide-react-native'
+import { Check, CircleCheck, ExternalLink, Info, Play, Plus, Star } from 'lucide-react-native'
 import { api, errorText, post, src, tmdbPath } from '../../../src/api/client'
 import type { RequestDetails, RequestSeason } from '../../../src/api/types'
 import { statusInfo } from '../../../src/components/cards'
-import { Button, Header, Img, Loading, toast } from '../../../src/components/ui'
+import { Button, Header, Img, Loading, Text, toast } from '../../../src/components/ui'
 import { formatRuntime } from '../../../src/lib/format'
 import { useRequestsConfig } from '../../../src/lib/queries'
-import { c, font, radius } from '../../../src/theme'
+import { makeStyles, useTheme } from '../../../src/theme'
 
 export default function RequestScreen() {
   const { type, id } = useLocalSearchParams<{ type: 'movie' | 'tv'; id: string }>()
   const { width } = useWindowDimensions()
+  const { c, f: font } = useTheme()
+  const styles = useStyles()
   const qc = useQueryClient()
   const cfg = useRequestsConfig()
   const canRequest = !!cfg.data?.canRequest
@@ -30,7 +32,7 @@ export default function RequestScreen() {
   const open = seasons.filter((s) => s.status === 'none')
   const isTV = t.mediaType === 'tv'
   const canAsk = canRequest && (isTV ? open.length > 0 : t.status === 'none')
-  const st = statusInfo[t.status]
+  const st = statusInfo(c, t.status)
 
   const send = async () => {
     setBusy(true)
@@ -72,7 +74,8 @@ export default function RequestScreen() {
             </View>
             {!!st.label && (
               <View style={[styles.status, { backgroundColor: st.bg }]}>
-                <Text style={styles.statusText}>{st.label}</Text>
+                {st.Icon && <st.Icon size={12} color={st.fg} strokeWidth={2.75} />}
+                <Text style={[styles.statusText, { color: st.fg }]}>{st.label}</Text>
               </View>
             )}
           </View>
@@ -85,18 +88,18 @@ export default function RequestScreen() {
             <View style={{ marginTop: 20 }}>
               <Text style={styles.eyebrow}>Seasons</Text>
               {seasons.map((s) => {
-                const sst = statusInfo[s.status]
+                const sst = statusInfo(c, s.status)
                 const selectable = s.status === 'none' && canRequest
                 const on = picked.includes(s.seasonNumber)
                 return (
-                  <Pressable key={s.seasonNumber} disabled={!selectable} onPress={() => togglePick(s)} style={[styles.season, on && { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
-                    <View style={[styles.box, on && { backgroundColor: c.white, borderColor: c.white }, !selectable && { borderColor: 'transparent' }]}>
-                      {on && <Check size={14} color={c.black} strokeWidth={3} />}
-                      {!selectable && s.status !== 'none' && <CircleCheck size={16} color="rgba(255,255,255,0.4)" />}
+                  <Pressable key={s.seasonNumber} disabled={!selectable} onPress={() => togglePick(s)} style={[styles.season, on && { backgroundColor: c.secondaryContainer }]}>
+                    <View style={[styles.box, on && { backgroundColor: c.accent, borderColor: c.accent }, !selectable && { borderColor: 'transparent' }]}>
+                      {on && <Check size={14} color={c.onAccent} strokeWidth={3} />}
+                      {!selectable && s.status !== 'none' && <CircleCheck size={18} color={c.muted} />}
                     </View>
                     <Text style={[font.body, { flex: 1, fontWeight: '500' }]} numberOfLines={1}>{s.name || `Season ${s.seasonNumber}`}</Text>
                     <Text style={font.tiny}>{s.episodeCount} ep</Text>
-                    {!!sst.label && <View style={[styles.status, { backgroundColor: sst.bg, marginTop: 0 }]}><Text style={styles.statusText}>{sst.label}</Text></View>}
+                    {!!sst.label && <View style={[styles.status, { backgroundColor: sst.bg, marginTop: 0 }]}><Text style={[styles.statusText, { color: sst.fg }]}>{sst.label}</Text></View>}
                   </Pressable>
                 )
               })}
@@ -105,17 +108,18 @@ export default function RequestScreen() {
           )}
 
           <View style={{ gap: 10, marginTop: 24 }}>
-            {!!t.itemId && <Button variant="primary" title="Watch now" icon={<Play size={18} color={c.black} fill={c.black} />} onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(t.itemId) } })} />}
+            {!!t.itemId && <Button variant="filled" size="l" title="Watch now" icon={Play} iconFill onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(t.itemId) } })} />}
             {canAsk ? (
-              <Button variant={t.itemId ? 'ghost' : 'accent'} title={label} icon={<Plus size={18} color={c.white} />} onPress={send} loading={busy} />
+              <Button variant={t.itemId ? 'tonal' : 'filled'} size="l" title={label} icon={Plus} onPress={send} loading={busy} />
             ) : !t.itemId && t.status !== 'none' ? (
               <View style={styles.info}>
-                <Text style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}>
+                <Info size={18} color={c.onSecondaryContainer} />
+                <Text style={[font.label, { color: c.onSecondaryContainer, flexShrink: 1 }]}>
                   {t.status === 'pending' ? 'Requested — waiting for approval' : t.status === 'processing' ? 'Requested — downloading' : t.status === 'available' ? 'Available — the library will update shortly' : 'Partly available'}
                 </Text>
               </View>
             ) : null}
-            {!!cfg.data?.seerrUrl && <Button title="Open in Seerr" icon={<ExternalLink size={16} color={c.fg} />} onPress={() => Linking.openURL(`${cfg.data!.seerrUrl}/${t.mediaType}/${t.tmdbId}`)} />}
+            {!!cfg.data?.seerrUrl && <Button variant="outlined" title="Open in Seerr" icon={ExternalLink} onPress={() => Linking.openURL(`${cfg.data!.seerrUrl}/${t.mediaType}/${t.tmdbId}`)} />}
           </View>
         </View>
       </ScrollView>
@@ -124,13 +128,13 @@ export default function RequestScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  poster: { width: 104, height: 156, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.1)' },
-  overview: { color: 'rgba(255,255,255,0.82)', fontSize: 15, lineHeight: 22, marginTop: 12 },
-  eyebrow: { color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 },
-  season: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, height: 50, borderRadius: 12 },
-  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' },
-  status: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 6, height: 20, borderRadius: 6, justifyContent: 'center' },
-  statusText: { fontSize: 10, fontWeight: '800', color: c.black, textTransform: 'uppercase', letterSpacing: 0.3 },
-  info: { minHeight: 46, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-})
+const useStyles = makeStyles((c, f) => ({
+  poster: { width: 108, height: 162, borderRadius: 16 },
+  overview: { ...f.body, color: c.dim, marginTop: 12 },
+  eyebrow: { ...f.label, color: c.accent, marginBottom: 8 },
+  season: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, height: 52, borderRadius: 26 },
+  box: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: c.outline, alignItems: 'center', justifyContent: 'center' },
+  status: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10, paddingHorizontal: 9, height: 24, borderRadius: 12 },
+  statusText: { ...f.labelSmall, fontSize: 11 },
+  info: { minHeight: 52, borderRadius: 26, backgroundColor: c.secondaryContainer, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 },
+}))

@@ -117,6 +117,11 @@ export interface MediaFile {
   trickplay: boolean
   creditsStart?: number
   creditsEnd?: number
+  // Found by the server's intro detection or imported from Jellyfin.
+  introStart?: number
+  introEnd?: number
+  recapStart?: number
+  recapEnd?: number
 }
 
 export interface ItemDetail extends Item {
@@ -323,4 +328,16 @@ export interface RequestsConfig {
   enabled: boolean
   canRequest: boolean
   seerrUrl: string
+}
+
+export interface JellyfinStatus {
+  enabled: boolean
+  running: boolean
+  lastSync: number // unix seconds
+  error?: string
+  linked: number
+  users: { lumen: string; jellyfin: string }[]
+  pulled: number
+  pushed: number
+  segments: number
 }

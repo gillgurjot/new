@@ -1,19 +1,21 @@
 import { useMemo } from 'react'
-import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native'
+import { Pressable, SectionList, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Download as DownloadIcon, Play } from 'lucide-react-native'
 import DownloadButton from '../../src/components/DownloadButton'
 import { playItem } from '../../src/components/cards'
-import { EmptyState, Img, PageTitle, ProgressBar } from '../../src/components/ui'
+import { EmptyState, Img, PageTitle, ProgressBar, Text } from '../../src/components/ui'
+import { Shape } from '../../src/components/expressive'
 import { type Download, downloadsSize, freeSpace, useDownloads } from '../../src/lib/downloads'
 import { bytes, episodeLabel, formatRuntime } from '../../src/lib/format'
 import { useUser } from '../../src/lib/auth'
-import { c, font, radius } from '../../src/theme'
+import { makeStyles, useTheme } from '../../src/theme'
 
 export default function Downloads() {
   const insets = useSafeAreaInsets()
   const user = useUser()
+  const styles = useStyles()
   const all = useDownloads()
   const sections = useMemo(() => {
     const active = all.filter((d) => d.state !== 'done')
@@ -46,7 +48,7 @@ export default function Downloads() {
         </View>
       }
       ListEmptyComponent={
-        <EmptyState icon={<DownloadIcon size={26} color={c.muted} />} title="No downloads yet">
+        <EmptyState icon={DownloadIcon} shape="softBurst" title="No downloads yet">
           {user?.canDownload
             ? 'Tap the download button on a movie or episode. The original file is saved to this phone, so it plays anywhere, even with no connection.'
             : 'Downloads are turned off for your account. Ask an admin to turn them on.'}
@@ -59,6 +61,8 @@ export default function Downloads() {
 }
 
 function DownloadRow({ d }: { d: Download }) {
+  const { c, f: font } = useTheme()
+  const styles = useStyles()
   const it = d.item
   const pct = d.total ? (d.bytes / d.total) * 100 : 0
   const watched = it.duration ? (d.position / it.duration) * 100 : 0
@@ -75,23 +79,27 @@ function DownloadRow({ d }: { d: Download }) {
         accessibilityLabel={`Play ${it.title}`}
       >
         <Img source={d.landscape ? { uri: d.landscape } : undefined} style={StyleSheet.absoluteFill} />
-        {d.state === 'done' && <View style={styles.play}><Play size={14} color={c.white} fill={c.white} /></View>}
-        {d.state === 'done' && watched > 1 && <ProgressBar pct={watched} color={c.white} style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }} />}
+        {d.state === 'done' && (
+          <Shape name="cookie9" size={34} color={c.accentContainer} style={styles.play}>
+            <Play size={14} color={c.onAccentContainer} fill={c.onAccentContainer} style={{ marginLeft: 2 }} />
+          </Shape>
+        )}
+        {d.state === 'done' && watched > 1 && <ProgressBar pct={watched} track="rgba(255,255,255,0.35)" style={{ position: 'absolute', left: 8, right: 8, bottom: 6 }} />}
       </Pressable>
       <Pressable style={{ flex: 1 }} onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(it.id) } })}>
         <Text style={styles.title} numberOfLines={2}>{it.title}</Text>
-        <Text style={[font.small, d.state === 'failed' && { color: c.warn }]} numberOfLines={2}>{status}</Text>
-        {(d.state === 'downloading' || d.state === 'paused') && <ProgressBar pct={pct} style={{ marginTop: 8 }} />}
+        <Text style={[font.small, d.state === 'failed' && { color: c.danger }]} numberOfLines={2}>{status}</Text>
+        {(d.state === 'downloading' || d.state === 'paused') && <ProgressBar pct={pct} wavy={d.state === 'downloading'} style={{ marginTop: 8 }} />}
       </Pressable>
       <DownloadButton itemId={it.id} compact />
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  section: { ...font.h3, paddingHorizontal: 16, marginTop: 18, marginBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
-  thumb: { width: 128, height: 72, borderRadius: radius.md, overflow: 'hidden', backgroundColor: c.surface2 },
-  play: { position: 'absolute', top: '50%', left: '50%', marginLeft: -15, marginTop: -15, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 2 },
-  title: { color: c.fg, fontSize: 15, fontWeight: '600', marginBottom: 3 },
-})
+const useStyles = makeStyles((c, f) => ({
+  section: { ...f.label, color: c.accent, paddingHorizontal: 20, marginTop: 20, marginBottom: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 },
+  thumb: { width: 132, height: 74, borderRadius: 16, overflow: 'hidden', backgroundColor: c.surface3 },
+  play: { position: 'absolute', top: '50%', left: '50%', marginLeft: -17, marginTop: -17 },
+  title: { ...f.bodyStrong, marginBottom: 2 },
+}))

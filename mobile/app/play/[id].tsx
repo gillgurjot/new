@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
+import { View } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, errorText, post } from '../../src/api/client'
 import type { Party } from '../../src/api/types'
-import { toast } from '../../src/components/ui'
+import { Text, toast } from '../../src/components/ui'
+import { LoadingIndicator } from '../../src/components/expressive'
 import { getDownload } from '../../src/lib/downloads'
 import Player from '../../src/player/Player'
 import { partyPosition } from '../../src/player/party'
-import { c } from '../../src/theme'
+import { DarkScope, useTheme } from '../../src/theme'
 
 export default function PlayScreen() {
   const params = useLocalSearchParams<{ id: string; t?: string; party?: string; invite?: string }>()
   const id = params.id
   const qc = useQueryClient()
+  const { pc: c, pf } = useTheme()
   const [partyId, setPartyId] = useState<string | null>(null)
   const [joinAt, setJoinAt] = useState<number | undefined>()
   const [checking, setChecking] = useState(!!params.party)
@@ -63,13 +65,16 @@ export default function PlayScreen() {
 
   if (checking) {
     return (
+      <DarkScope>
       <View style={{ flex: 1, backgroundColor: c.black, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color={c.white} />
-        <Text style={{ color: c.muted, marginTop: 14 }}>Joining the watch party…</Text>
+        <LoadingIndicator size={64} color={c.accent} />
+        <Text style={[pf.body, { color: c.muted, marginTop: 14 }]}>Joining the watch party…</Text>
       </View>
+      </DarkScope>
     )
   }
   return (
+    <DarkScope>
     <Player
       key={id}
       itemId={Number(id)}
@@ -95,5 +100,6 @@ export default function PlayScreen() {
         router.setParams({ party: undefined, invite: undefined })
       }}
     />
+    </DarkScope>
   )
 }

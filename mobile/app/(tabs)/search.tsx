@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, View } from 'react-native'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
-import { Search as SearchIcon, Sparkles, X } from 'lucide-react-native'
+import { ChevronRight, Search as SearchIcon, Sparkles } from 'lucide-react-native'
 import { api, landscapePath, src } from '../../src/api/client'
 import type { Item } from '../../src/api/types'
 import Grid from '../../src/components/Grid'
 import { openItem } from '../../src/components/cards'
-import { Chip, EmptyState, Img, Loading } from '../../src/components/ui'
+import { Chip, EmptyState, Img, ListRow, Loading, SearchBar, Text } from '../../src/components/ui'
 import { episodeLabel } from '../../src/lib/format'
 import { useLibraries, useRequestsConfig } from '../../src/lib/queries'
-import { c, font, radius } from '../../src/theme'
+import { makeStyles, useTheme } from '../../src/theme'
 
 export default function Search() {
   const insets = useSafeAreaInsets()
+  const { c, f: font } = useTheme()
+  const styles = useStyles()
   const [text, setText] = useState('')
   const [q, setQ] = useState('')
   const libs = useLibraries()
@@ -31,26 +33,10 @@ export default function Search() {
 
   const header = (
     <View style={{ paddingTop: insets.top + 10 }}>
-      <View style={styles.box}>
-        <SearchIcon size={18} color={c.muted} />
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="Movies, shows, episodes"
-          placeholderTextColor={c.muted}
-          style={styles.input}
-          returnKeyType="search"
-          autoCorrect={false}
-        />
-        {!!text && (
-          <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel="Clear">
-            <X size={18} color={c.muted} />
-          </Pressable>
-        )}
-      </View>
+      <SearchBar value={text} onChangeText={setText} onClear={() => setText('')} placeholder="Movies, shows, episodes" style={{ marginHorizontal: 16, marginBottom: 18 }} />
       {!q && (
         <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-          <Text style={[font.small, { marginBottom: 10 }]}>Browse</Text>
+          <Text style={[font.label, { color: c.accent, marginBottom: 10 }]}>Browse</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {(libs.data || []).map((l) => (
               <Chip key={l.id} label={l.name} onPress={() => router.push({ pathname: '/library/[id]', params: { id: String(l.id) } })} />
@@ -64,7 +50,7 @@ export default function Search() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}>
             {episodes.slice(0, 20).map((e) => (
               <Pressable key={e.id} onPress={() => openItem(e)} style={{ width: 200 }}>
-                <Img source={src(landscapePath(e, 200))} style={{ width: 200, height: 112, borderRadius: radius.md }} />
+                <Img source={src(landscapePath(e, 200))} style={{ width: 200, height: 112, borderRadius: 16 }} />
                 <Text style={styles.epTitle} numberOfLines={1}>{e.title}</Text>
                 <Text style={font.tiny} numberOfLines={1}>{e.seriesTitle} · {episodeLabel(e)}</Text>
               </Pressable>
@@ -85,17 +71,16 @@ export default function Search() {
           q && r.isFetching && !r.data ? (
             <Loading />
           ) : q && !r.isFetching && !episodes.length ? (
-            <EmptyState icon={<SearchIcon size={26} color={c.muted} />} title={`Nothing found for “${q}”`}>
+            <EmptyState icon={SearchIcon} shape="pentagon" title={`Nothing found for “${q}”`}>
               {req.data?.enabled ? 'Not in the library yet? You can request it.' : 'Try a different spelling.'}
             </EmptyState>
           ) : null
         }
         footer={
           q && req.data?.enabled ? (
-            <Pressable onPress={() => router.navigate({ pathname: '/requests', params: { q } })} style={styles.request}>
-              <Sparkles size={18} color={c.accent} />
-              <Text style={[font.body, { flex: 1 }]}>Request “{q}”</Text>
-            </Pressable>
+            <View style={styles.request}>
+              <ListRow icon={Sparkles} shape="sunny" tone="tertiary" title={`Request “${q}”`} sub="Ask for it to be added to the library" onPress={() => router.navigate({ pathname: '/requests', params: { q } })} right={<ChevronRight size={20} color={c.muted} />} />
+            </View>
           ) : null
         }
       />
@@ -103,9 +88,7 @@ export default function Search() {
   )
 }
 
-const styles = StyleSheet.create({
-  box: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginBottom: 18, height: 48, borderRadius: radius.pill, backgroundColor: c.surface2, paddingHorizontal: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-  input: { flex: 1, color: c.fg, fontSize: 16, paddingVertical: 0 },
-  epTitle: { color: c.fg, fontSize: 13, fontWeight: '600', marginTop: 6 },
-  request: { flexDirection: 'row', alignItems: 'center', gap: 12, margin: 16, padding: 16, borderRadius: radius.lg, backgroundColor: c.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-})
+const useStyles = makeStyles((c, f) => ({
+  epTitle: { ...f.label, fontSize: 13.5, marginTop: 8 },
+  request: { margin: 16, borderRadius: 24, overflow: 'hidden', backgroundColor: c.surface2 },
+}))

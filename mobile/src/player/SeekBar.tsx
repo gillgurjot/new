@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { PanResponder, StyleSheet, Text, View } from 'react-native'
+import { PanResponder, View } from 'react-native'
 import { Image } from 'expo-image'
 import { abs, api, authHeaders } from '../api/client'
 import { formatTime } from '../lib/format'
-import { c } from '../theme'
+import { makeStyles, useTheme } from '../theme'
+import { Text } from '../components/ui'
 
 export interface TrickIndex {
   interval: number
@@ -32,6 +33,7 @@ export function useTrickplay(url?: string, fileId?: number) {
 
 function Thumb({ t, trick }: { t: number; trick: ReturnType<typeof useTrickplay> }) {
   const { idx, fileId } = trick
+  const { pc: c } = useTheme()
   if (!idx || !fileId) return null
   const n = Math.min(Math.floor(t / idx.interval), Math.max(0, idx.count - 1))
   const per = idx.cols * idx.rows
@@ -45,7 +47,7 @@ function Thumb({ t, trick }: { t: number; trick: ReturnType<typeof useTrickplay>
   const y = Math.floor(k / idx.cols) * h
   const path = `/api/trickplay/${fileId}/${String(sheet).padStart(3, '0')}.jpg`
   return (
-    <View style={{ width: w, height: h, overflow: 'hidden', borderRadius: 8, borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)', backgroundColor: c.black, marginBottom: 6 }}>
+    <View style={{ width: w, height: h, overflow: 'hidden', borderRadius: 16, borderWidth: 2, borderColor: c.accent, backgroundColor: c.black, marginBottom: 6 }}>
       <Image
         source={{ uri: abs(path), headers: authHeaders(), cacheKey: path }}
         style={{ position: 'absolute', left: -x, top: -y, width: idx.cols * w, height: idx.rows * h }}
@@ -67,6 +69,7 @@ export default function SeekBar({
   onScrubbing?: (on: boolean) => void
   trick: ReturnType<typeof useTrickplay>
 }) {
+  const styles = useStyles()
   const bar = useRef<React.ComponentRef<typeof View>>(null)
   const geo = useRef({ x: 0, w: 1 })
   const [scrub, setScrub] = useState<number | null>(null)
@@ -118,12 +121,13 @@ export default function SeekBar({
       <View style={styles.row}>
         <Text style={styles.time}>{formatTime(shown)}</Text>
         <View ref={bar} onLayout={measure} style={styles.hit} {...pan.panHandlers}>
+          {/* M3 Expressive slider: a thick track, a gap either side of a bar-shaped handle. */}
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${bufPct}%`, backgroundColor: 'rgba(255,255,255,0.35)' }]} />
-            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: c.accent }]} />
+            <View style={[styles.fill, styles.buffered, { width: `${bufPct}%` }]} />
             {marks?.map((m, i) => duration > 0 && <View key={i} style={[styles.mark, { left: `${(m / duration) * 100}%` }]} />)}
           </View>
-          <View style={[styles.knob, { left: `${pct}%` }, scrub !== null && { transform: [{ scale: 1.4 }] }]} />
+          <View style={[styles.active, { width: `${pct}%` }]} />
+          <View style={[styles.knob, { left: `${pct}%` }, scrub !== null && styles.knobOn]} />
         </View>
         <Text style={styles.time}>-{formatTime(Math.max(0, duration - shown))}</Text>
       </View>
@@ -131,14 +135,17 @@ export default function SeekBar({
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c, f) => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  time: { color: c.fg, fontSize: 12.5, fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'center', fontWeight: '600' },
-  hit: { flex: 1, height: 36, justifyContent: 'center' },
-  track: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
+  time: { ...f.labelSmall, color: c.white, fontVariant: ['tabular-nums'], minWidth: 56, textAlign: 'center', fontSize: 12.5 },
+  hit: { flex: 1, height: 40, justifyContent: 'center' },
+  track: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.22)', overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  mark: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: 'rgba(0,0,0,0.6)' },
-  knob: { position: 'absolute', width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: c.white },
-  preview: { position: 'absolute', bottom: 40, width: 160, alignItems: 'center', marginLeft: 64 },
-  previewText: { color: c.white, fontWeight: '700', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 6 },
-})
+  buffered: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  active: { position: 'absolute', left: 0, height: 8, borderRadius: 4, backgroundColor: c.accent },
+  mark: { position: 'absolute', top: 0, bottom: 0, width: 3, backgroundColor: 'rgba(0,0,0,0.55)' },
+  knob: { position: 'absolute', width: 4, height: 24, borderRadius: 2, marginLeft: -2, backgroundColor: c.accent, borderWidth: 0 },
+  knobOn: { height: 32, width: 6, marginLeft: -3, borderRadius: 3 },
+  preview: { position: 'absolute', bottom: 44, width: 160, alignItems: 'center', marginLeft: 68 },
+  previewText: { ...f.label, color: c.onAccent, backgroundColor: c.accent, paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+}), true)

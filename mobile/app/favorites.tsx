@@ -5,7 +5,6 @@ import { api } from '../src/api/client'
 import type { Item } from '../src/api/types'
 import Grid from '../src/components/Grid'
 import { EmptyState, Header, Loading } from '../src/components/ui'
-import { c } from '../src/theme'
 
 export default function Favorites() {
   const q = useQuery({ queryKey: ['favorites'], queryFn: () => api<Item[]>('/api/favorites') })
@@ -18,7 +17,7 @@ export default function Favorites() {
         <Grid
           items={q.data || []}
           header={<View style={{ height: 8 }} />}
-          empty={<EmptyState icon={<Heart size={26} color={c.muted} />} title="Your list is empty">Tap the heart on any title to save it here.</EmptyState>}
+          empty={<EmptyState icon={Heart} shape="cookie12" title="Your list is empty">Tap the heart on any title to save it here.</EmptyState>}
         />
       )}
     </View>

@@ -1,13 +1,15 @@
-import { memo } from 'react'
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { memo, type ReactNode } from 'react'
+import { FlatList, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
+import Animated from 'react-native-reanimated'
 import { router } from 'expo-router'
 import { Check, CircleCheck, Clock, Download as DownloadIcon, Play } from 'lucide-react-native'
 import { errorText, landscapePath, post, posterPath, src, tmdbPath } from '../api/client'
 import type { Item, Party, RequestStatus, RequestTitle } from '../api/types'
 import { episodeLabel, progressPct, remaining } from '../lib/format'
 import { useDownload } from '../lib/downloads'
-import { c, font, radius } from '../theme'
-import { Img, ProgressBar, SectionTitle, toast } from './ui'
+import { makeStyles, useTheme, type Palette } from '../theme'
+import { Button, Img, ProgressBar, SectionTitle, Text, toast } from './ui'
+import { Shape, usePressScale } from './expressive'
 
 export function openItem(it: Item) {
   if (it.type === 'season' && it.parentId) router.push({ pathname: '/item/[id]', params: { id: String(it.parentId), season: String(it.id) } })
@@ -28,67 +30,91 @@ export async function startParty(itemId: number, position = 0) {
   }
 }
 
+/** A card that sinks a little under the finger and springs back. */
+function PressCard({ onPress, onLongPress, label, style, children }: { onPress: () => void; onLongPress?: () => void; label: string; style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const { style: scale, onPressIn, onPressOut } = usePressScale(0.05)
+  return (
+    <Animated.View style={[style, scale]}>
+      <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={onPressIn} onPressOut={onPressOut} accessibilityLabel={label}>
+        {children}
+      </Pressable>
+    </Animated.View>
+  )
+}
+
 function Badge({ it }: { it: Item }) {
+  const s = useStyles()
+  const { c } = useTheme()
+  const played = <View style={s.played}><Check size={13} color={c.onAccent} strokeWidth={3} /></View>
   if (it.type === 'series' || it.type === 'season') {
-    if (it.unplayedCount) return <View style={styles.count}><Text style={styles.countText}>{it.unplayedCount}</Text></View>
-    if (it.childCount && it.unplayedCount === 0) return <View style={styles.played}><Check size={12} color={c.black} strokeWidth={3} /></View>
+    if (it.unplayedCount) return <View style={s.count}><Text style={s.countText}>{it.unplayedCount}</Text></View>
+    if (it.childCount && it.unplayedCount === 0) return played
     return null
   }
-  if (it.userData?.played) return <View style={styles.played}><Check size={12} color={c.black} strokeWidth={3} /></View>
-  return null
+  return it.userData?.played ? played : null
 }
 
 function DownloadedDot({ id }: { id: number }) {
+  const s = useStyles()
   const d = useDownload(id)
   if (!d || d.state !== 'done') return null
-  return <View style={styles.dl}><DownloadIcon size={11} color={c.white} strokeWidth={2.5} /></View>
+  return <View style={s.dl}><DownloadIcon size={12} color="#fff" strokeWidth={2.5} /></View>
 }
 
 export const PosterCard = memo(function PosterCard({ it, width = 120, onPress }: { it: Item; width?: number; onPress?: () => void }) {
+  const s = useStyles()
+  const { c } = useTheme()
   const pct = progressPct(it)
   return (
-    <Pressable onPress={onPress ?? (() => openItem(it))} style={({ pressed }) => [{ width }, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]} accessibilityLabel={it.title}>
-      <View style={[styles.poster, { width, height: width * 1.5 }]}>
-        <Img source={src(posterPath(it, width))} style={StyleSheet.absoluteFill} fallback={<Text style={styles.fallback} numberOfLines={3}>{it.title}</Text>} />
+    <PressCard onPress={onPress ?? (() => openItem(it))} label={it.title} style={{ width }}>
+      <View style={[s.poster, { width, height: width * 1.5 }]}>
+        <Img source={src(posterPath(it, width))} style={StyleSheet.absoluteFill} fallback={<Text style={s.fallback} numberOfLines={3}>{it.title}</Text>} />
         <Badge it={it} />
         <DownloadedDot id={it.id} />
-        {pct > 0 && pct < 100 && <ProgressBar pct={pct} style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }} />}
+        {pct > 0 && pct < 100 && (
+          <View style={s.posterProgress}>
+            <ProgressBar pct={pct} color={c.accent} track="rgba(255,255,255,0.35)" />
+          </View>
+        )}
       </View>
-      <Text style={styles.title} numberOfLines={1}>{it.type === 'episode' ? it.seriesTitle : it.title}</Text>
-      <Text style={styles.sub} numberOfLines={1}>{it.type === 'episode' ? episodeLabel(it) : it.year || ''}</Text>
-    </Pressable>
+      <Text style={s.title} numberOfLines={1}>{it.type === 'episode' ? it.seriesTitle : it.title}</Text>
+      <Text style={s.sub} numberOfLines={1}>{it.type === 'episode' ? episodeLabel(it) : it.year || ''}</Text>
+    </PressCard>
   )
 })
 
 /** Wide card for Continue watching / Next up: artwork, progress and time left. */
 export const LandscapeCard = memo(function LandscapeCard({ it, width = 260, play = true }: { it: Item; width?: number; play?: boolean }) {
+  const s = useStyles()
+  const { c } = useTheme()
   const pct = progressPct(it)
   return (
-    <Pressable
-      onPress={() => (play ? playItem(it.id) : openItem(it))}
-      onLongPress={() => openItem(it)}
-      style={({ pressed }) => [{ width }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-      accessibilityLabel={`Play ${it.seriesTitle || it.title}`}
-    >
-      <View style={[styles.land, { width, height: (width * 9) / 16 }]}>
+    <PressCard onPress={() => (play ? playItem(it.id) : openItem(it))} onLongPress={() => openItem(it)} label={`Play ${it.seriesTitle || it.title}`} style={{ width }}>
+      <View style={[s.land, { width, height: (width * 9) / 16 }]}>
         <Img source={src(landscapePath(it, width))} style={StyleSheet.absoluteFill} />
-        <View style={styles.playDot}><Play size={16} color={c.white} fill={c.white} /></View>
+        <Shape name="cookie9" size={40} color={c.accentContainer} style={s.playShape}>
+          <Play size={17} color={c.onAccentContainer} fill={c.onAccentContainer} style={{ marginLeft: 2 }} />
+        </Shape>
         <DownloadedDot id={it.id} />
-        {pct > 0 && <ProgressBar pct={pct} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, borderRadius: 0 }} />}
+        {pct > 0 && (
+          <View style={s.landProgress}>
+            <ProgressBar pct={pct} color={c.accent} track="rgba(255,255,255,0.35)" />
+          </View>
+        )}
       </View>
-      <Text style={styles.title} numberOfLines={1}>{it.type === 'episode' ? it.seriesTitle : it.title}</Text>
-      <Text style={styles.sub} numberOfLines={1}>
+      <Text style={s.title} numberOfLines={1}>{it.type === 'episode' ? it.seriesTitle : it.title}</Text>
+      <Text style={s.sub} numberOfLines={1}>
         {[it.type === 'episode' ? `${episodeLabel(it)} · ${it.title}` : '', pct > 0 ? remaining(it) : ''].filter(Boolean).join('  ·  ') || (it.year ? String(it.year) : '')}
       </Text>
-    </Pressable>
+    </PressCard>
   )
 })
 
 export function Row({ title, items, kind = 'poster', onMore }: { title: string; items: Item[]; kind?: 'poster' | 'landscape'; onMore?: () => void }) {
   if (!items.length) return null
   return (
-    <View style={{ marginBottom: 26 }}>
-      <SectionTitle right={onMore && <Text onPress={onMore} style={{ color: c.accent, fontWeight: '600' }}>See all</Text>}>{title}</SectionTitle>
+    <View style={{ marginBottom: 28 }}>
+      <SectionTitle right={onMore && <Button variant="text" size="s" title="See all" onPress={onMore} style={{ marginRight: -12 }} />}>{title}</SectionTitle>
       <FlatList
         horizontal
         data={items}
@@ -103,44 +129,57 @@ export function Row({ title, items, kind = 'poster', onMore }: { title: string; 
   )
 }
 
-export const statusInfo: Record<RequestStatus, { label: string; bg: string; Icon?: typeof Check }> = {
-  none: { label: '', bg: '' },
-  pending: { label: 'Requested', bg: c.warn, Icon: Clock },
-  processing: { label: 'Downloading', bg: c.info, Icon: DownloadIcon },
-  partial: { label: 'Partly here', bg: c.white, Icon: Check },
-  available: { label: 'In library', bg: c.success, Icon: CircleCheck },
+export interface StatusInfo {
+  label: string
+  bg: string
+  fg: string
+  Icon?: typeof Check
+}
+
+export function statusInfo(c: Palette, status: RequestStatus): StatusInfo {
+  return {
+    none: { label: '', bg: '', fg: '' },
+    pending: { label: 'Requested', bg: c.tertiaryContainer, fg: c.onTertiaryContainer, Icon: Clock },
+    processing: { label: 'Downloading', bg: c.secondaryContainer, fg: c.onSecondaryContainer, Icon: DownloadIcon },
+    partial: { label: 'Partly here', bg: c.surface4, fg: c.fg, Icon: Check },
+    available: { label: 'In library', bg: c.accent, fg: c.onAccent, Icon: CircleCheck },
+  }[status]
 }
 
 export const RequestCard = memo(function RequestCard({ t, width, onPress }: { t: RequestTitle; width: number; onPress: () => void }) {
-  const st = statusInfo[t.status]
+  const s = useStyles()
+  const { c } = useTheme()
+  const st = statusInfo(c, t.status)
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ width }, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]} accessibilityLabel={t.title}>
-      <View style={[styles.poster, { width, height: width * 1.5 }]}>
-        <Img source={src(tmdbPath(t.poster, 'w342'))} style={StyleSheet.absoluteFill} fallback={<Text style={styles.fallback} numberOfLines={3}>{t.title}</Text>} />
+    <PressCard onPress={onPress} label={t.title} style={{ width }}>
+      <View style={[s.poster, { width, height: width * 1.5 }]}>
+        <Img source={src(tmdbPath(t.poster, 'w342'))} style={StyleSheet.absoluteFill} fallback={<Text style={s.fallback} numberOfLines={3}>{t.title}</Text>} />
         {!!st.label && (
-          <View style={[styles.status, { backgroundColor: st.bg }]}>
-            {st.Icon && <st.Icon size={10} color={c.black} strokeWidth={3} />}
-            <Text style={styles.statusText}>{st.label}</Text>
+          <View style={[s.status, { backgroundColor: st.bg }]}>
+            {st.Icon && <st.Icon size={11} color={st.fg} strokeWidth={2.75} />}
+            <Text style={[s.statusText, { color: st.fg }]}>{st.label}</Text>
           </View>
         )}
       </View>
-      <Text style={styles.title} numberOfLines={1}>{t.title}</Text>
-      <Text style={styles.sub}>{[t.mediaType === 'tv' ? 'Show' : 'Movie', t.year].filter(Boolean).join(' · ')}</Text>
-    </Pressable>
+      <Text style={s.title} numberOfLines={1}>{t.title}</Text>
+      <Text style={s.sub}>{[t.mediaType === 'tv' ? 'Show' : 'Movie', t.year].filter(Boolean).join(' · ')}</Text>
+    </PressCard>
   )
 })
 
-const styles = StyleSheet.create({
-  poster: { borderRadius: radius.md, overflow: 'hidden', backgroundColor: c.surface2, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.06)' },
-  land: { borderRadius: radius.md, overflow: 'hidden', backgroundColor: c.surface2 },
-  title: { ...font.body, fontSize: 13, fontWeight: '600', marginTop: 7 },
-  sub: { ...font.tiny, fontSize: 12, marginTop: 1 },
-  fallback: { color: c.muted, fontSize: 13, fontWeight: '600', textAlign: 'center', padding: 8 },
-  count: { position: 'absolute', top: 6, right: 6, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: c.accentStrong, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  countText: { color: c.white, fontSize: 11, fontWeight: '800' },
-  played: { position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: c.white, alignItems: 'center', justifyContent: 'center' },
-  dl: { position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
-  playDot: { position: 'absolute', left: 10, bottom: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 2 },
-  status: { position: 'absolute', top: 6, left: 6, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 20, borderRadius: 6 },
-  statusText: { fontSize: 9.5, fontWeight: '800', color: c.black, textTransform: 'uppercase', letterSpacing: 0.3 },
-})
+const useStyles = makeStyles((c, f) => ({
+  poster: { borderRadius: 16, overflow: 'hidden', backgroundColor: c.surface3 },
+  land: { borderRadius: 20, overflow: 'hidden', backgroundColor: c.surface3 },
+  title: { ...f.label, fontSize: 13.5, marginTop: 8 },
+  sub: { ...f.tiny, marginTop: 1 },
+  fallback: { ...f.labelSmall, textAlign: 'center', padding: 8 },
+  count: { position: 'absolute', top: 7, right: 7, minWidth: 24, height: 24, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7 },
+  countText: { ...f.labelSmall, color: c.onAccent, fontWeight: '700' },
+  played: { position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 8, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
+  dl: { position: 'absolute', top: 7, left: 7, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  playShape: { position: 'absolute', left: 10, bottom: 14 },
+  posterProgress: { position: 'absolute', left: 8, right: 8, bottom: 8 },
+  landProgress: { position: 'absolute', left: 12, right: 12, bottom: 8 },
+  status: { position: 'absolute', top: 7, left: 7, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 22, borderRadius: 11 },
+  statusText: { ...f.labelSmall, fontSize: 10.5, letterSpacing: 0.2 },
+}))

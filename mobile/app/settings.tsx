@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
-import { ChevronDown } from 'lucide-react-native'
+import { Pressable, ScrollView, View } from 'react-native'
+import { isDynamicThemeSupported } from '@pchmn/expo-material3-theme'
+import {
+  AudioLines, Captions, Check, ChevronDown, Download, FastForward, Languages, ListVideo, Moon, Palette as PaletteIcon, Signal, SkipForward, Smartphone, Sparkles, Sun, SunMoon, Type, Vibrate, Wifi,
+} from 'lucide-react-native'
 import { errorText, put } from '../src/api/client'
 import type { User } from '../src/api/types'
-import { Card, Header, ListRow, MenuSheet, toast } from '../src/components/ui'
+import { Group, Header, ListRow, MenuSheet, SegmentedButtons, Switch, Text, toast } from '../src/components/ui'
 import { useAuth } from '../src/lib/auth'
 import { applyDownloadSettings } from '../src/lib/downloads'
 import { langLabel } from '../src/lib/format'
 import { qualityOptions, setPrefs, usePrefs } from '../src/lib/prefs'
-import { c, font } from '../src/theme'
+import { SEED_COLORS, makeStyles, useTheme } from '../src/theme'
+import { haptic } from '../src/lib/haptics'
 
 const LANGS = ['', 'eng', 'hin', 'pan', 'spa', 'fre', 'ger', 'ita', 'jpn', 'kor', 'chi', 'tam', 'tel', 'urd', 'ara', 'por', 'rus']
 const SUB_MODES: { v: User['subtitleMode']; l: string; d: string }[] = [
@@ -21,6 +25,8 @@ type Picker = null | 'audio' | 'subLang' | 'subMode' | 'quality' | 'cellular'
 
 export default function Settings() {
   const { user, setUser } = useAuth()
+  const { c } = useTheme()
+  const styles = useStyles()
   const prefs = usePrefs()
   const [pick, setPick] = useState<Picker>(null)
   if (!user) return null
@@ -35,39 +41,76 @@ export default function Settings() {
   }
   const lang = (l: string) => (l ? langLabel(l) : 'No preference')
   const q = (v: string) => qualityOptions.find((o) => o.value === v)?.label || 'Original'
-  const toggle = (on: boolean, set: (v: boolean) => void) => <Switch value={on} onValueChange={set} trackColor={{ true: c.accentStrong, false: c.surface3 }} thumbColor={c.white} />
+  const toggle = (on: boolean, set: (v: boolean) => void) => <Switch value={on} onValueChange={set} />
+  const more = <ChevronDown size={20} color={c.muted} />
 
   return (
     <View style={{ flex: 1 }}>
       <Header title="Settings" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}>
-        <Text style={styles.section}>Languages · saved to your account</Text>
-        <Card>
-          <ListRow title="Preferred audio" sub={lang(user.audioLang)} onPress={() => setPick('audio')} right={<ChevronDown size={18} color={c.muted} />} />
-          <View style={styles.sep} />
-          <ListRow title="Subtitle language" sub={user.subtitleLang ? langLabel(user.subtitleLang) : 'Same as audio'} onPress={() => setPick('subLang')} right={<ChevronDown size={18} color={c.muted} />} />
-          <View style={styles.sep} />
-          <ListRow title="Subtitles" sub={SUB_MODES.find((m) => m.v === user.subtitleMode)?.l} onPress={() => setPick('subMode')} right={<ChevronDown size={18} color={c.muted} />} />
-        </Card>
+      <ScrollView contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}>
+        <Group title="Appearance">
+          <View style={styles.block}>
+            <SegmentedButtons
+              value={prefs.themeMode}
+              onValueChange={(v) => setPrefs({ themeMode: v as typeof prefs.themeMode })}
+              buttons={[
+                { value: 'system', label: 'System', icon: SunMoon },
+                { value: 'light', label: 'Light', icon: Sun },
+                { value: 'dark', label: 'Dark', icon: Moon },
+              ]}
+            />
+          </View>
+          {isDynamicThemeSupported ? (
+            <ListRow icon={Sparkles} shape="sunny" tone="primary" title="Colours from wallpaper" sub="Material You" right={toggle(prefs.dynamicColor, (v) => setPrefs({ dynamicColor: v }))} />
+          ) : null}
+          {!(isDynamicThemeSupported && prefs.dynamicColor) ? (
+            <View style={styles.block}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+                <PaletteIcon size={20} color={c.muted} />
+                <Text style={styles.blockTitle}>Theme colour</Text>
+              </View>
+              <View style={styles.swatches}>
+                {SEED_COLORS.map((col) => {
+                  const on = prefs.seedColor.toLowerCase() === col.toLowerCase()
+                  return (
+                    <Pressable
+                      key={col}
+                      accessibilityLabel={`Colour ${col}`}
+                      accessibilityState={{ selected: on }}
+                      onPress={() => {
+                        haptic.tick()
+                        setPrefs({ seedColor: col })
+                      }}
+                      style={[styles.swatch, { backgroundColor: col, borderRadius: on ? 14 : 22 }]}
+                    >
+                      {on && <Check size={20} color="#fff" strokeWidth={3} />}
+                    </Pressable>
+                  )
+                })}
+              </View>
+            </View>
+          ) : null}
+          <ListRow icon={Vibrate} title="Haptic feedback" right={toggle(prefs.haptics, (v) => setPrefs({ haptics: v }))} />
+        </Group>
 
-        <Text style={styles.section}>Playback · this phone</Text>
-        <Card>
-          <ListRow title="Quality on Wi-Fi" sub={q(prefs.quality)} onPress={() => setPick('quality')} right={<ChevronDown size={18} color={c.muted} />} />
-          <View style={styles.sep} />
-          <ListRow title="Quality on mobile data" sub={q(prefs.cellularQuality)} onPress={() => setPick('cellular')} right={<ChevronDown size={18} color={c.muted} />} />
-          <View style={styles.sep} />
-          <ListRow title="Autoplay next episode" right={toggle(prefs.autoplayNext, (v) => setPrefs({ autoplayNext: v }))} />
-          <View style={styles.sep} />
-          <ListRow title="Skip intros automatically" right={toggle(prefs.skipIntro, (v) => setPrefs({ skipIntro: v }))} />
-          <View style={styles.sep} />
-          <ListRow title="Skip credits automatically" sub="Goes straight to the next episode" right={toggle(prefs.skipCredits, (v) => setPrefs({ skipCredits: v }))} />
-          <View style={styles.sep} />
-          <ListRow title="Subtitle background" right={toggle(prefs.subtitleBackground, (v) => setPrefs({ subtitleBackground: v }))} />
-        </Card>
+        <Group title="Languages · saved to your account">
+          <ListRow icon={AudioLines} title="Preferred audio" sub={lang(user.audioLang)} onPress={() => setPick('audio')} right={more} />
+          <ListRow icon={Languages} title="Subtitle language" sub={user.subtitleLang ? langLabel(user.subtitleLang) : 'Same as audio'} onPress={() => setPick('subLang')} right={more} />
+          <ListRow icon={Captions} title="Subtitles" sub={SUB_MODES.find((m) => m.v === user.subtitleMode)?.l} onPress={() => setPick('subMode')} right={more} />
+        </Group>
 
-        <Text style={styles.section}>Downloads</Text>
-        <Card>
+        <Group title="Playback · this phone">
+          <ListRow icon={Wifi} title="Quality on Wi-Fi" sub={q(prefs.quality)} onPress={() => setPick('quality')} right={more} />
+          <ListRow icon={Signal} title="Quality on mobile data" sub={q(prefs.cellularQuality)} onPress={() => setPick('cellular')} right={more} />
+          <ListRow icon={ListVideo} title="Autoplay next episode" sub="Counts down when the credits start" right={toggle(prefs.autoplayNext, (v) => setPrefs({ autoplayNext: v }))} />
+          <ListRow icon={FastForward} title="Skip intros automatically" sub="Intros and recaps, found by the server or Jellyfin" right={toggle(prefs.skipIntro, (v) => setPrefs({ skipIntro: v }))} />
+          <ListRow icon={SkipForward} title="Skip credits automatically" sub="Goes straight to the next episode" right={toggle(prefs.skipCredits, (v) => setPrefs({ skipCredits: v }))} />
+          <ListRow icon={Type} title="Subtitle background" right={toggle(prefs.subtitleBackground, (v) => setPrefs({ subtitleBackground: v }))} />
+        </Group>
+
+        <Group title="Downloads">
           <ListRow
+            icon={prefs.downloadOnWifiOnly ? Wifi : Download}
             title="Download on Wi-Fi only"
             sub="Waits for Wi-Fi instead of using mobile data"
             right={toggle(prefs.downloadOnWifiOnly, (v) => {
@@ -75,7 +118,11 @@ export default function Settings() {
               applyDownloadSettings()
             })}
           />
-        </Card>
+        </Group>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: 0.7 }}>
+          <Smartphone size={14} color={c.muted} />
+          <Text style={styles.foot}>Playback, appearance and downloads are saved on this phone.</Text>
+        </View>
       </ScrollView>
 
       <MenuSheet open={pick === 'audio'} onClose={() => setPick(null)} title="Preferred audio" options={LANGS.map((l) => ({ label: lang(l), selected: user.audioLang === l, onPress: () => savePref({ audioLang: l }) }))} />
@@ -98,7 +145,10 @@ export default function Settings() {
   )
 }
 
-const styles = StyleSheet.create({
-  section: { ...font.small, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 12, marginTop: 14, marginBottom: 4, marginLeft: 4 },
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: c.line, marginLeft: 16 },
-})
+const useStyles = makeStyles((c, f) => ({
+  block: { padding: 16 },
+  blockTitle: { ...f.bodyStrong, fontSize: 16 },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  swatch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  foot: { ...f.tiny },
+}))
