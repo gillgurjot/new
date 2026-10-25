@@ -194,9 +194,9 @@ function Detail({ item, onChange, season, offline }: { item: ItemDetail; onChang
 function Action({ label, icon, onPress, on, fill }: { label: string; icon: LucideIcon; onPress: () => void; on?: boolean; fill?: boolean }) {
   const styles = useStyles()
   return (
-    <View style={{ alignItems: 'center', width: 72 }}>
+    <View style={{ alignItems: 'center', flex: 1 }}>
       <IconButton label={label} icon={icon} onPress={onPress} selected={on} fill={fill} size={48} variant="tonal" />
-      <Text style={styles.actionLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.actionLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
     </View>
   )
 }
@@ -304,7 +304,7 @@ const useStyles = makeStyles((c, f) => ({
   meta: { ...f.small, color: c.dim, fontWeight: '500' },
   tag: { ...f.labelSmall, fontSize: 11, color: c.onSecondaryContainer, backgroundColor: c.secondaryContainer, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
   tagHdr: { color: c.onTertiaryContainer, backgroundColor: c.tertiaryContainer },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 2, marginTop: 20, marginBottom: 18 },
+  actions: { flexDirection: 'row', gap: 2, marginTop: 20, marginBottom: 18 },
   actionLabel: { ...f.labelSmall, marginTop: 6 },
   tagline: { ...f.body, color: c.muted, fontStyle: 'italic', marginBottom: 6, fontSize: 14 },
   overview: { ...f.body, color: c.dim },

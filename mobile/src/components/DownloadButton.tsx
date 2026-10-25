@@ -99,7 +99,7 @@ export default function DownloadButton({ itemId, size, label, compact, videoCode
       <Pressable
         onPress={() => (d ? setMenu(true) : start())}
         disabled={busy}
-        style={({ pressed }) => [{ alignItems: 'center', width: compact ? s : 72 }, pressed && { opacity: 0.7 }]}
+        style={({ pressed }) => [compact ? { alignItems: 'center', width: s } : { alignItems: 'center', flex: 1 }, pressed && { opacity: 0.7 }]}
         accessibilityLabel={text}
         hitSlop={4}
       >
@@ -107,7 +107,7 @@ export default function DownloadButton({ itemId, size, label, compact, videoCode
           {(d?.state === 'downloading' || d?.state === 'paused') && <Ring pct={pct} size={s} />}
           {icon}
         </View>
-        {label && <Text style={st.label} numberOfLines={1}>{text}</Text>}
+        {label && <Text style={st.label} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{text}</Text>}
       </Pressable>
       <MenuSheet
         open={menu}

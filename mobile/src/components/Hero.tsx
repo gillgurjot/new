@@ -74,7 +74,7 @@ function Slide({ it, width, height }: { it: Item; width: number; height: number 
         )}
         <Text style={s.meta} numberOfLines={1}>{meta}</Text>
         <View style={s.actions}>
-          <Button variant="filled" size="l" title={pct > 0 ? 'Resume' : 'Play'} icon={Play} iconFill onPress={() => (it.type === 'series' ? openItem(it) : playItem(it.id))} style={{ flex: 1.3 }} />
+          <Button variant="filled" size="l" title={pct > 0 ? 'Resume' : 'Play'} icon={Play} iconFill onPress={() => (it.type === 'series' ? openItem(it) : playItem(it.id))} style={{ flex: 1 }} />
           <Button variant="tonal" size="l" title="Details" icon={Info} onPress={() => openItem(it)} style={{ flex: 1 }} />
         </View>
       </View>

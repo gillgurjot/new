@@ -3,7 +3,7 @@ import {
   Modal, Pressable, Text as RNText, TextInput, View, type GestureResponderEvent, type StyleProp, type TextInputProps, type TextProps, type TextStyle, type ViewStyle,
 } from 'react-native'
 import Animated, {
-  FadeIn, FadeOut, LinearTransition, SlideInDown, SlideOutDown, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withDelay, withSpring,
+  Easing, FadeIn, FadeOut, LinearTransition, SlideInDown, SlideOutDown, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withDelay, withSpring,
 } from 'react-native-reanimated'
 import { Image, type ImageSource } from 'expo-image'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -533,7 +533,7 @@ export function Sheet({ open, onClose, children, title, maxHeight = '85%' }: { o
           <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={s.backdrop}>
             <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Close" />
           </Animated.View>
-          <Animated.View entering={SlideInDown.springify().damping(motion.spatial.damping).stiffness(motion.spatial.stiffness)} exiting={SlideOutDown.duration(180)} style={[s.sheet, { paddingBottom: insets.bottom + 12, maxHeight }]}>
+          <Animated.View entering={SlideInDown.duration(220).easing(Easing.out(Easing.cubic))} exiting={SlideOutDown.duration(160).easing(Easing.in(Easing.cubic))} style={[s.sheet, { paddingBottom: insets.bottom + 12, maxHeight }]}>
             <View style={s.grabber} />
             {!!title && <Text style={[f.h2, { paddingHorizontal: 24, paddingBottom: 10, fontSize: 20 }]}>{title}</Text>}
             <Animated.ScrollView bounces={false} contentContainerStyle={{ paddingHorizontal: 12 }}>{children}</Animated.ScrollView>
@@ -623,9 +623,9 @@ function ToastView({ t }: { t: Toast }) {
   const Icon = t.kind === 'error' ? CircleAlert : t.kind === 'info' ? Info : Check
   return (
     <Animated.View
-      entering={SlideInDown.springify().damping(motion.fastSpatial.damping).stiffness(motion.fastSpatial.stiffness)}
-      exiting={FadeOut.duration(180)}
-      layout={LinearTransition.springify()}
+      entering={FadeIn.duration(150)}
+      exiting={FadeOut.duration(150)}
+      layout={LinearTransition.duration(150)}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.inverse, paddingHorizontal: 16, minHeight: 48, paddingVertical: 12, borderRadius: 16, maxWidth: 440, alignSelf: 'stretch', elevation: 3 }}
     >
       <Icon size={18} color={t.kind === 'error' ? (c.dark ? '#b3261e' : '#f2b8b5') : c.inverseAccent} />
