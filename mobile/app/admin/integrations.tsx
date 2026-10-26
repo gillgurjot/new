@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Globe, KeyRound, Link2, Server, Unplug } from 'lucide-react-native'
 import { api, del, errorText, put } from '../../src/api/client'
 import type { Integration, Integrations } from '../../src/api/types'
-import { Button, Field, Group, Header, ListRow, Loading, Text, toast } from '../../src/components/ui'
+import { Button, EmptyState, Field, Group, Header, ListRow, Loading, Text, toast } from '../../src/components/ui'
 import { useTheme } from '../../src/theme'
 
 // Connect Jellyfin (watch-history sync) and Seerr (requests) without touching the server's
@@ -21,7 +21,11 @@ export default function AdminIntegrations() {
   return (
     <View style={{ flex: 1 }}>
       <Header title="Integrations" />
-      {!q.data ? (
+      {q.isError ? (
+        <EmptyState icon={Unplug} title="Couldn't load integrations" action={<Button title="Try again" onPress={() => void q.refetch()} />}>
+          {errorText(q.error)}
+        </EmptyState>
+      ) : !q.data ? (
         <Loading />
       ) : (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
