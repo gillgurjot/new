@@ -1,7 +1,7 @@
 import { Alert, ScrollView, View } from 'react-native'
 import { router } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, FolderOpen, RefreshCw, Square, Users } from 'lucide-react-native'
+import { ChevronRight, FolderOpen, Link2, RefreshCw, Square, Users } from 'lucide-react-native'
 import { api, del, errorText, post } from '../../src/api/client'
 import type { JellyfinStatus, PlaySession, SystemInfo } from '../../src/api/types'
 import { Button, Group, Header, IconButton, ListRow, ProgressBar, Text, toast } from '../../src/components/ui'
@@ -63,6 +63,7 @@ export default function Admin() {
         <Group>
           <ListRow icon={FolderOpen} shape="cookie9" title="Libraries" sub="Scan for new files, refresh details" onPress={() => router.push('/admin/libraries')} right={chevron} />
           <ListRow icon={Users} shape="clover4" title="Users" sub="Library access, downloads, requests" onPress={() => router.push('/admin/users')} right={chevron} />
+          <ListRow icon={Link2} shape="cookie6" title="Integrations" sub="Connect Jellyfin and Seerr" onPress={() => router.push('/admin/integrations')} right={chevron} />
         </Group>
 
         <Group title="Jellyfin sync">
@@ -75,7 +76,7 @@ export default function Admin() {
                 </Text>
                 <Text style={font.small}>
                   {!j?.enabled
-                    ? 'Add JELLYFIN_URL and JELLYFIN_API_KEY to the server to carry over watch history, Continue watching, favourites and intro markers.'
+                    ? 'Connect Jellyfin under Integrations to carry over watch history, Continue watching, favourites and intro markers.'
                     : j.error || `${j.linked} files linked · ${j.users.length} account${j.users.length === 1 ? '' : 's'} matched`}
                 </Text>
               </View>

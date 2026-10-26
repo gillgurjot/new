@@ -341,3 +341,17 @@ export interface JellyfinStatus {
   pushed: number
   segments: number
 }
+
+/** A server connected from the admin screen. API keys are never sent back, only hasKey. */
+export interface Integration {
+  url: string
+  publicUrl?: string
+  hasKey: boolean
+  enabled: boolean
+  source: '' | 'env' | 'saved' | 'off'
+}
+
+export interface Integrations {
+  jellyfin: Integration
+  seerr: Integration
+}

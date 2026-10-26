@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lumen",
     "slug": "lumen",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "scheme": "lumen",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.gurjotgill.lumen",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#09090d",
         "foregroundImage": "./assets/android-icon-foreground.png",

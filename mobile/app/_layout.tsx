@@ -81,6 +81,7 @@ function Root() {
         <Stack.Screen name="admin/index" />
         <Stack.Screen name="admin/libraries" />
         <Stack.Screen name="admin/users" />
+        <Stack.Screen name="admin/integrations" />
         <Stack.Screen name="play/[id]" options={{ orientation: 'landscape', animation: 'fade', navigationBarHidden: true, statusBarHidden: true, autoHideHomeIndicator: true }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
