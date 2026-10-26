@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gillgurjot/lumen/internal/auth"
@@ -19,7 +20,6 @@ import (
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
 	"github.com/gillgurjot/lumen/internal/party"
-	"github.com/gillgurjot/lumen/internal/seerr"
 	"github.com/gillgurjot/lumen/internal/store"
 	"github.com/gillgurjot/lumen/internal/stream"
 	"github.com/go-chi/chi/v5"
@@ -41,11 +41,12 @@ type Server struct {
 	Subs      *stream.Subtitles
 	Jobs      *jobs.Runner
 	Party     *party.Hub
-	Seerr     *seerr.Client // nil when not configured
 	Log       *slog.Logger
 	Web       fs.FS // built SPA
 	Ctx       context.Context
 	StartedAt time.Time
+
+	seerrConn atomic.Pointer[seerrConn]
 }
 
 type ctxKey int
@@ -228,6 +229,9 @@ func (s *Server) Router() http.Handler {
 			r.Get("/system", s.adminSystem)
 			r.Get("/jellyfin", s.adminJellyfin)
 			r.Post("/jellyfin/sync", s.adminJellyfinSync)
+			r.Get("/integrations", s.adminIntegrations)
+			r.Put("/integrations/{name}", s.adminSaveIntegration)
+			r.Delete("/integrations/{name}", s.adminRemoveIntegration)
 			r.Get("/libraries", s.adminLibraries)
 			r.Post("/libraries", s.adminCreateLibrary)
 			r.Put("/libraries/{id}", s.adminUpdateLibrary)

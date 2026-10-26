@@ -48,7 +48,7 @@ export default function Users() {
                 <div className="text-xs text-muted truncate">{u.email || u.username} · signed in {timeAgo(u.lastLogin)}</div>
               </div>
               {!u.isAdmin && (
-                <button onClick={() => save(u, { disabled: !u.disabled })} className={u.disabled ? 'btn !h-9 !px-4 bg-emerald-500/20 hover:bg-emerald-500/30' : 'btn-danger !h-9 !px-4'}>
+                <button onClick={() => save(u, { disabled: !u.disabled })} className={u.disabled ? 'btn !h-9 !px-4 bg-emerald-500/20 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/30' : 'btn-danger !h-9 !px-4'}>
                   {u.disabled ? 'Enable' : 'Disable'}
                 </button>
               )}

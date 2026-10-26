@@ -69,7 +69,7 @@ export default function RequestsPage() {
     return (
       <div className="pt-24 px-4">
         <EmptyState icon={<Plus className="size-8" />} title="Requests aren’t set up">
-          An admin can connect Seerr by setting <code className="text-white/80">SEERR_URL</code> and <code className="text-white/80">SEERR_API_KEY</code>.
+          An admin can connect Seerr by setting <span className="text-fg/80">Server admin → Integrations</span>.
         </EmptyState>
       </div>
     )
@@ -80,7 +80,7 @@ export default function RequestsPage() {
       <div className="px-4 md:px-10">
         <PageTitle sub="Find a movie or show and request it. It’s downloaded and added to the library automatically.">Request</PageTitle>
         {!cfg.data?.canRequest && (
-          <div className="mb-5 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">Requests are turned off for your account. You can still browse.</div>
+          <div className="mb-5 rounded-3xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-100">Requests are turned off for your account. You can still browse.</div>
         )}
         <div className="relative max-w-2xl mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted pointer-events-none" />
@@ -111,7 +111,7 @@ export default function RequestsPage() {
             {lists.map((x) => <button key={x.v} onClick={() => setList(x.v)} className={list === x.v ? 'pill-on' : 'pill'}>{x.l}</button>)}
           </div>
         )}
-        {browse.error && <p className="text-sm text-red-300 mb-4">{(browse.error as Error).message}</p>}
+        {browse.error && <p className="text-sm text-red-600 dark:text-red-300 mb-4">{(browse.error as Error).message}</p>}
         {q && browse.data && !results.length && <EmptyState icon={<Search className="size-8" />} title={`Nothing found for “${q}”`}>Try the original title or fewer words.</EmptyState>}
         <div className="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-x-3 gap-y-6 md:gap-x-5">
           {results.map((t) => (
@@ -123,7 +123,7 @@ export default function RequestsPage() {
               </div>
             </button>
           ))}
-          {browse.isLoading && Array.from({ length: 12 }).map((_, i) => <div key={i}><div className="skeleton aspect-[2/3] rounded-xl" /><div className="skeleton h-3 mt-2 w-2/3 rounded" /></div>)}
+          {browse.isLoading && Array.from({ length: 12 }).map((_, i) => <div key={i}><div className="skeleton aspect-[2/3] rounded-2xl" /><div className="skeleton h-3 mt-2 w-2/3 rounded" /></div>)}
         </div>
         {browse.hasNextPage && (
           <div className="flex justify-center mt-8">
@@ -139,7 +139,7 @@ export default function RequestsPage() {
 function TitlePoster({ t }: { t: RequestTitle }) {
   const st = statusInfo[t.status]
   return (
-    <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 ring-1 ring-inset ring-white/[.06] transition group-hover:ring-white/30 group-active:scale-[.98]">
+    <div className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-surface-2 shadow-[0_10px_30px_-14px_rgb(0_0_0/.55)] ring-1 ring-inset ring-white/10 transition duration-500 ease-[var(--ease-liquid)] group-hover:-translate-y-1 group-active:scale-[.97]">
       <Img src={tmdbImage(t.poster, 'w342')} alt={t.title} className="absolute inset-0 size-full group-hover:scale-[1.03] transition-transform duration-500" />
       {st.label && (
         <span className={`absolute top-2 left-2 inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide shadow ${st.cls}`}>
@@ -187,13 +187,12 @@ function RequestSheet({ title, onClose, canRequest, seerrUrl }: { title: Request
 
   return (
     <Sheet open={!!title} onClose={onClose} wide>
-      <div className="-mx-5 -mt-2 sm:mt-0 relative aspect-[16/8] sm:rounded-t-3xl overflow-hidden bg-surface-2">
+      <div className="-mx-5 -mt-2 sm:mt-0 relative aspect-[16/8] overflow-hidden bg-surface-2 [mask-image:linear-gradient(to_bottom,black_60%,transparent)]">
         <Img src={tmdbImage(t.backdrop, 'w1280')} alt="" className="absolute inset-0 size-full" fallback={<span />} />
-        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent" />
-        <button onClick={onClose} className="absolute top-3 right-3 icon-btn !size-9 !bg-black/50" aria-label="Close"><X className="size-4" /></button>
+                <button onClick={onClose} className="absolute top-3 right-3 !size-9 rounded-full glass-dark text-white grid place-items-center" aria-label="Close"><X className="size-4" /></button>
       </div>
       <div className="flex gap-4 -mt-16 relative">
-        <div className="w-24 shrink-0 aspect-[2/3] rounded-xl overflow-hidden ring-1 ring-white/10 shadow-2xl bg-surface-2">
+        <div className="w-24 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl shadow-black/40 bg-surface-2">
           <Img src={tmdbImage(t.poster, 'w342')} alt={t.title} className="size-full" />
         </div>
         <div className="min-w-0 pt-10">
@@ -210,10 +209,10 @@ function RequestSheet({ title, onClose, canRequest, seerrUrl }: { title: Request
         </div>
       </div>
       {d.data?.genres?.length ? <div className="text-xs text-muted mt-3">{d.data.genres.join(' · ')}</div> : null}
-      {t.overview && <p className="text-sm text-white/80 leading-relaxed mt-3">{t.overview}</p>}
+      {t.overview && <p className="text-sm text-fg/80 leading-relaxed mt-3">{t.overview}</p>}
 
       {d.isLoading && <div className="py-6 grid place-items-center"><Spinner className="size-6" /></div>}
-      {d.error && <p className="text-sm text-red-300 mt-4">{(d.error as Error).message}</p>}
+      {d.error && <p className="text-sm text-red-600 dark:text-red-300 mt-4">{(d.error as Error).message}</p>}
 
       {isTV && seasons.length > 0 && (
         <div className="mt-5">
@@ -224,10 +223,10 @@ function RequestSheet({ title, onClose, canRequest, seerrUrl }: { title: Request
               const selectable = s.status === 'none' && canRequest
               const on = picked.includes(s.seasonNumber)
               return (
-                <button key={s.seasonNumber} disabled={!selectable} onClick={() => togglePick(s)} className={`w-full flex items-center gap-3 px-3 h-12 rounded-xl text-left transition ${selectable ? 'hover:bg-white/[.06]' : ''} ${on ? 'bg-white/[.08]' : ''}`}>
-                  <span className={`size-5 rounded-md border grid place-items-center shrink-0 ${on ? 'bg-white border-white text-black' : selectable ? 'border-white/30' : 'border-transparent'}`}>
+                <button key={s.seasonNumber} disabled={!selectable} onClick={() => togglePick(s)} className={`w-full flex items-center gap-3 px-3 h-12 rounded-2xl text-left transition ${selectable ? 'hover:bg-fg/[.06]' : ''} ${on ? 'bg-fg/[.08]' : ''}`}>
+                  <span className={`size-5 rounded-md border grid place-items-center shrink-0 ${on ? 'bg-fg border-fg text-bg' : selectable ? 'border-fg/30' : 'border-transparent'}`}>
                     {on && <Check className="size-3.5" strokeWidth={3} />}
-                    {!selectable && s.status !== 'none' && <CheckCircle2 className="size-4 text-white/40" />}
+                    {!selectable && s.status !== 'none' && <CheckCircle2 className="size-4 text-fg/40" />}
                   </span>
                   <span className="text-sm font-medium flex-1 min-w-0 truncate">{s.name || `Season ${s.seasonNumber}`}</span>
                   <span className="text-xs text-muted">{s.episodeCount} ep</span>
@@ -249,7 +248,7 @@ function RequestSheet({ title, onClose, canRequest, seerrUrl }: { title: Request
             {busy ? <Spinner className="size-5" /> : <><Plus className="size-5" /> {requestLabel}</>}
           </button>
         ) : !t.itemId && t.status !== 'none' ? (
-          <div className="w-full sm:flex-1 min-h-12 px-4 py-2 rounded-full bg-white/[.06] grid place-items-center text-center text-sm text-white/70">
+          <div className="w-full sm:flex-1 min-h-12 px-4 py-2 rounded-full bg-fg/[.06] grid place-items-center text-center text-sm text-fg/70">
             {t.status === 'pending' ? 'Requested — waiting for approval' : t.status === 'processing' ? 'Requested — downloading' : t.status === 'available' ? 'Available — the library will update shortly' : 'Partly available'}
           </div>
         ) : null}

@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gillgurjot/lumen/internal/jellyfin"
@@ -39,16 +40,29 @@ type JellyfinMap struct {
 }
 
 type jfState struct {
+	client atomic.Pointer[jellyfin.Client] // nil when not configured
 	mu     sync.Mutex
 	status JellyfinStatus
 	wake   chan struct{}
+}
+
+// Jellyfin is the client in use, or nil when Jellyfin isn't set up.
+func (r *Runner) Jellyfin() *jellyfin.Client { return r.jf.client.Load() }
+
+// SetJellyfin switches to another server or key (nil turns syncing off) and syncs soon.
+func (r *Runner) SetJellyfin(c *jellyfin.Client) {
+	r.jf.client.Store(c)
+	r.jf.mu.Lock()
+	r.jf.status = JellyfinStatus{}
+	r.jf.mu.Unlock()
+	r.SyncJellyfin()
 }
 
 func (r *Runner) JellyfinStatus() JellyfinStatus {
 	r.jf.mu.Lock()
 	defer r.jf.mu.Unlock()
 	s := r.jf.status
-	s.Enabled = r.Jellyfin.Enabled()
+	s.Enabled = r.Jellyfin().Enabled()
 	s.Users = append([]JellyfinMap{}, s.Users...)
 	return s
 }
@@ -87,12 +101,19 @@ func (r *Runner) jellyfinLoop(ctx context.Context) {
 }
 
 func (r *Runner) runJellyfin(ctx context.Context) {
+	jf := r.Jellyfin()
+	if jf == nil {
+		return
+	}
 	r.jf.mu.Lock()
 	r.jf.status.Running = true
 	r.jf.mu.Unlock()
-	res, err := r.syncJellyfin(ctx)
+	res, err := r.syncJellyfin(ctx, jf)
 	r.jf.mu.Lock()
 	defer r.jf.mu.Unlock()
+	if r.Jellyfin() != jf {
+		return // switched servers mid-sync; the new one syncs next
+	}
 	r.jf.status.Running = false
 	r.jf.status.LastSync = time.Now().Unix()
 	r.jf.status.Linked = r.St.JellyfinLinkCount()
@@ -116,9 +137,9 @@ type syncResult struct {
 	pulled, pushed, segments int
 }
 
-func (r *Runner) syncJellyfin(ctx context.Context) (syncResult, error) {
+func (r *Runner) syncJellyfin(ctx context.Context, jf *jellyfin.Client) (syncResult, error) {
 	var res syncResult
-	jfUsers, err := r.Jellyfin.Users(ctx)
+	jfUsers, err := jf.Users(ctx)
 	if err != nil {
 		return res, err
 	}
@@ -162,26 +183,26 @@ func (r *Runner) syncJellyfin(ctx context.Context) (syncResult, error) {
 	}
 	if len(pairs) == 0 && len(jfUsers) > 0 {
 		// Nobody to sync, but intro segments are still worth having.
-		items, err := r.Jellyfin.Items(ctx, jfUsers[0].ID)
+		items, err := jf.Items(ctx, jfUsers[0].ID)
 		if err != nil {
 			return res, err
 		}
 		link(items)
 	}
 	for _, p := range pairs {
-		items, err := r.Jellyfin.Items(ctx, p.jf.ID)
+		items, err := jf.Items(ctx, p.jf.ID)
 		if err != nil {
 			return res, err
 		}
 		refs := link(items)
-		pulled, pushed, err := r.syncUser(ctx, p.u, p.jf, items, refs)
+		pulled, pushed, err := r.syncUser(ctx, jf, p.u, p.jf, items, refs)
 		res.pulled += pulled
 		res.pushed += pushed
 		if err != nil {
 			return res, err
 		}
 	}
-	res.segments, err = r.syncSegments(ctx)
+	res.segments, err = r.syncSegments(ctx, jf)
 	return res, err
 }
 
@@ -264,7 +285,7 @@ func lumenView(r store.UDRow) view {
 	return view{played: r.Played, position: int64(math.Round(r.Position)), favorite: r.Favorite}
 }
 
-func (r *Runner) syncUser(ctx context.Context, u *store.User, jfu jellyfin.User, items []jellyfin.Item, refs map[string]store.FileRef) (pulled, pushed int, err error) {
+func (r *Runner) syncUser(ctx context.Context, jf *jellyfin.Client, u *store.User, jfu jellyfin.User, items []jellyfin.Item, refs map[string]store.FileRef) (pulled, pushed int, err error) {
 	local, err := r.St.UserDataRows(u.ID)
 	if err != nil {
 		return 0, 0, err
@@ -355,7 +376,7 @@ func (r *Runner) syncUser(ctx context.Context, u *store.User, jfu jellyfin.User,
 				t := time.Unix(lu.LastPlayed, 0).UTC()
 				d.LastPlayedDate = &t
 			}
-			if err := r.Jellyfin.UpdateUserData(ctx, jfu.ID, it.ID, d); err != nil {
+			if err := jf.UpdateUserData(ctx, jfu.ID, it.ID, d); err != nil {
 				return pulled, pushed, err
 			}
 			pushed++
@@ -367,7 +388,7 @@ func (r *Runner) syncUser(ctx context.Context, u *store.User, jfu jellyfin.User,
 
 // syncSegments copies Intro Skipper's intro, recap and credits times. Items without an
 // intro are checked again every few hours, since the plugin may get to them later.
-func (r *Runner) syncSegments(ctx context.Context) (int, error) {
+func (r *Runner) syncSegments(ctx context.Context, jf *jellyfin.Client) (int, error) {
 	checks, err := r.St.ItemsNeedingSegments(time.Now().Add(-6*time.Hour).Unix(), 500)
 	if err != nil {
 		return 0, err
@@ -377,7 +398,7 @@ func (r *Runner) syncSegments(ctx context.Context) (int, error) {
 		if ctx.Err() != nil {
 			return n, ctx.Err()
 		}
-		segs, err := r.Jellyfin.Segments(ctx, c.JFID)
+		segs, err := jf.Segments(ctx, c.JFID)
 		if err != nil {
 			return n, err
 		}

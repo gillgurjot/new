@@ -38,7 +38,7 @@ export function PartyPanel({ party, itemId, onClose, onLeave }: { party: PartyCo
 
   return (
     <div
-      className="absolute z-30 inset-x-0 bottom-0 h-[62%] sm:inset-x-auto sm:right-0 sm:top-0 sm:h-auto sm:w-[360px] flex flex-col bg-[#0e0e13] border-t sm:border-t-0 sm:border-l border-line rounded-t-3xl sm:rounded-none shadow-2xl sheet-in"
+      className="absolute z-30 inset-x-0 bottom-0 h-[62%] sm:inset-x-auto sm:right-0 sm:top-0 sm:h-auto sm:w-[360px] flex flex-col glass-strong rounded-t-[32px] sm:rounded-[28px] sm:m-3 sheet-in"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseMove={(e) => e.stopPropagation()}

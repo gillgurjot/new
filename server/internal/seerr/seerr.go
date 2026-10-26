@@ -316,3 +316,8 @@ func StatusCode(err error) int {
 	}
 	return 502
 }
+
+// Check confirms the server answers and accepts the API key.
+func (c *Client) Check(ctx context.Context) error {
+	return c.do(ctx, "GET", "/auth/me", 0, nil, nil)
+}

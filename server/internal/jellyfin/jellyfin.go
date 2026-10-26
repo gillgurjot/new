@@ -127,3 +127,9 @@ func (c *Client) Segments(ctx context.Context, itemID string) ([]Segment, error)
 	}
 	return out.Items, c.do(ctx, "GET", "/MediaSegments/"+url.PathEscape(itemID), nil, nil, &out)
 }
+
+// Check confirms the server answers and the key is an admin API key (listing users needs one).
+func (c *Client) Check(ctx context.Context) error {
+	_, err := c.Users(ctx)
+	return err
+}

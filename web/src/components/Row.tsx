@@ -11,7 +11,7 @@ export default function Row({ title, to, children, wide = false, action }: { tit
       <div className="flex items-center gap-3 px-4 md:px-10 mb-3">
         <h2 className="text-[17px] md:text-xl font-semibold tracking-tight">{title}</h2>
         {to && (
-          <Link to={to} className="ml-auto text-[13px] font-medium text-muted hover:text-white transition inline-flex items-center gap-0.5">
+          <Link to={to} className="ml-auto text-[13px] font-medium text-muted hover:text-fg transition inline-flex items-center gap-0.5">
             See all <ChevronRight className="size-4" />
           </Link>
         )}
@@ -23,7 +23,7 @@ export default function Row({ title, to, children, wide = false, action }: { tit
         </button>
         <div
           ref={ref}
-          className={`flex gap-3 md:gap-4 overflow-x-auto scrollbar-none snap-x snap-mandatory scroll-px-4 md:scroll-px-10 px-4 md:px-10 pb-1 ${wide ? '[&>*]:w-[68vw] sm:[&>*]:w-[300px] lg:[&>*]:w-[330px]' : '[&>*]:w-[30vw] sm:[&>*]:w-[150px] lg:[&>*]:w-[170px]'} [&>*]:shrink-0 [&>*]:snap-start`}
+          className={`flex gap-3 md:gap-4 overflow-x-auto scrollbar-none snap-x snap-mandatory scroll-px-4 md:scroll-px-10 px-4 md:px-10 pt-2 -mt-2 pb-3 ${wide ? '[&>*]:w-[68vw] sm:[&>*]:w-[300px] lg:[&>*]:w-[330px]' : '[&>*]:w-[30vw] sm:[&>*]:w-[150px] lg:[&>*]:w-[170px]'} [&>*]:shrink-0 [&>*]:snap-start`}
         >
           {children}
         </div>

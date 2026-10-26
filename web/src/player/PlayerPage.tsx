@@ -64,7 +64,7 @@ export default function PlayerPage() {
 
   if (checking) {
     return (
-      <div className="fixed inset-0 bg-black grid place-items-center">
+      <div data-theme="dark" className="fixed inset-0 bg-black grid place-items-center">
         <div className="text-center">
           <Spinner className="size-12 mx-auto mb-4" />
           <div className="text-sm text-muted">Joining the watch party…</div>

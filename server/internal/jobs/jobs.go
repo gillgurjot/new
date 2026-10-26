@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gillgurjot/lumen/internal/jellyfin"
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
 	"github.com/gillgurjot/lumen/internal/store"
@@ -32,7 +31,6 @@ type Runner struct {
 	ScanInterval time.Duration
 	Log          *slog.Logger
 
-	Jellyfin         *jellyfin.Client // nil when not configured
 	JellyfinInterval time.Duration
 
 	metaQueue chan int64
@@ -60,10 +58,9 @@ func (r *Runner) Start(ctx context.Context) {
 	if r.Intro {
 		go r.introLoop(ctx)
 	}
-	if r.Jellyfin.Enabled() {
-		r.jf.wake = make(chan struct{}, 1)
-		go r.jellyfinLoop(ctx)
-	}
+	// Always running: Jellyfin can be connected later from the admin page.
+	r.jf.wake = make(chan struct{}, 1)
+	go r.jellyfinLoop(ctx)
 }
 
 // ScanAll scans every library in turn.

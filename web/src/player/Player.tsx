@@ -742,6 +742,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
   return (
     <div
       ref={wrapRef}
+      data-theme="dark"
       className={`fixed inset-0 bg-black select-none ${controls ? '' : 'cursor-none'}`}
       onMouseMove={poke}
       onTouchStart={() => controls && poke()}
@@ -773,7 +774,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
 
       {flash && (
         <div className="absolute inset-0 grid place-items-center pointer-events-none">
-          <div className="px-5 py-2.5 rounded-full bg-black/60 backdrop-blur text-lg font-semibold fade-in">{flash}</div>
+          <div className="px-5 py-2.5 rounded-full glass-dark text-lg font-semibold pop-in [transform-origin:center]">{flash}</div>
         </div>
       )}
 
@@ -833,7 +834,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
 
       {/* Up next */}
       {upNext !== null && next && (
-        <div className="absolute right-4 bottom-28 md:right-10 md:bottom-32 z-10 w-72 max-w-[calc(100%-2rem)] rounded-2xl bg-surface/95 backdrop-blur-xl border border-line overflow-hidden fade-in shadow-2xl">
+        <div className="absolute right-4 bottom-28 md:right-10 md:bottom-32 z-10 w-72 max-w-[calc(100%-2rem)] rounded-3xl glass-strong overflow-hidden sheet-in">
           <div className="relative aspect-video">
             <img src={landscapeUrl(next, 320)} alt="" className="size-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" />
@@ -872,11 +873,11 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
 
       {/* Centre controls on touch screens */}
       <div className={`absolute inset-0 hidden pointer-coarse:flex items-center justify-center gap-10 pointer-events-none transition-opacity duration-300 ${controls && !loading && !waiting && !error && !casting && !needTap ? 'opacity-100' : 'opacity-0'}`}>
-        <button onClick={(e) => { e.stopPropagation(); seek(time - 10); poke() }} className={`size-14 rounded-full grid place-items-center bg-black/35 backdrop-blur-sm ${controls ? 'pointer-events-auto' : ''}`} aria-label="Back 10 seconds"><RotateCcw className="size-7" /></button>
-        <button onClick={(e) => { e.stopPropagation(); togglePlay(); poke() }} className={`size-[72px] rounded-full grid place-items-center bg-black/40 backdrop-blur-sm ${controls ? 'pointer-events-auto' : ''}`} aria-label={paused ? 'Play' : 'Pause'}>
+        <button onClick={(e) => { e.stopPropagation(); seek(time - 10); poke() }} className={`size-14 rounded-full grid place-items-center glass-dark transition active:scale-90 ${controls ? 'pointer-events-auto' : ''}`} aria-label="Back 10 seconds"><RotateCcw className="size-7" /></button>
+        <button onClick={(e) => { e.stopPropagation(); togglePlay(); poke() }} className={`size-[72px] rounded-full grid place-items-center glass-dark transition active:scale-90 ${controls ? 'pointer-events-auto' : ''}`} aria-label={paused ? 'Play' : 'Pause'}>
           {paused ? <Play className="size-9 fill-current ml-1" /> : <Pause className="size-9 fill-current" />}
         </button>
-        <button onClick={(e) => { e.stopPropagation(); seek(time + 10); poke() }} className={`size-14 rounded-full grid place-items-center bg-black/35 backdrop-blur-sm ${controls ? 'pointer-events-auto' : ''}`} aria-label="Forward 10 seconds"><RotateCw className="size-7" /></button>
+        <button onClick={(e) => { e.stopPropagation(); seek(time + 10); poke() }} className={`size-14 rounded-full grid place-items-center glass-dark transition active:scale-90 ${controls ? 'pointer-events-auto' : ''}`} aria-label="Forward 10 seconds"><RotateCw className="size-7" /></button>
       </div>
 
       {/* Bottom controls */}
@@ -918,14 +919,14 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
         </div>
 
         <div className="flex items-center gap-1 md:gap-2 mt-1">
-          <button onClick={togglePlay} className="icon-btn !bg-transparent hover:!bg-white/10 pointer-coarse:hidden" aria-label={paused ? 'Play' : 'Pause'}>
+          <button onClick={togglePlay} className="icon-btn-plain hover:!bg-white/10 pointer-coarse:hidden" aria-label={paused ? 'Play' : 'Pause'}>
             {paused ? <Play className="size-6 fill-current" /> : <Pause className="size-6 fill-current" />}
           </button>
-          <button onClick={() => seek(time - 10)} className="icon-btn !bg-transparent hover:!bg-white/10 pointer-coarse:hidden" aria-label="Back 10 seconds"><RotateCcw className="size-5" /></button>
-          <button onClick={() => seek(time + 30)} className="icon-btn !bg-transparent hover:!bg-white/10 pointer-coarse:hidden" aria-label="Forward 30 seconds"><RotateCw className="size-5" /></button>
-          {next && <button onClick={() => goNext(next.id)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Next episode" title="Next episode (N)"><SkipForward className="size-5" /></button>}
+          <button onClick={() => seek(time - 10)} className="icon-btn-plain hover:!bg-white/10 pointer-coarse:hidden" aria-label="Back 10 seconds"><RotateCcw className="size-5" /></button>
+          <button onClick={() => seek(time + 30)} className="icon-btn-plain hover:!bg-white/10 pointer-coarse:hidden" aria-label="Forward 30 seconds"><RotateCw className="size-5" /></button>
+          {next && <button onClick={() => goNext(next.id)} className="icon-btn-plain hover:!bg-white/10" aria-label="Next episode" title="Next episode (N)"><SkipForward className="size-5" /></button>}
           <div className="hidden sm:flex items-center group/vol">
-            <button onClick={() => setMuted((m) => !m)} className="icon-btn !bg-transparent hover:!bg-white/10" aria-label="Mute">
+            <button onClick={() => setMuted((m) => !m)} className="icon-btn-plain hover:!bg-white/10" aria-label="Mute">
               {muted || volume === 0 ? <VolumeX className="size-5" /> : volume < 0.5 ? <Volume1 className="size-5" /> : <Volume2 className="size-5" />}
             </button>
             <input type="range" min={0} max={1} step={0.02} value={muted ? 0 : volume} onChange={(e) => { setVolume(+e.target.value); setMuted(false) }} className="range w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 transition-all" aria-label="Volume" />
@@ -947,7 +948,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
             <CtrlBtn label="Fullscreen (F)" onClick={toggleFullscreen}>{fullscreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />}</CtrlBtn>
 
             {menu && (
-              <div className="absolute bottom-14 right-0 w-[min(88vw,340px)] max-h-[60vh] overflow-y-auto rounded-2xl border border-line bg-surface/95 backdrop-blur-xl p-2 shadow-2xl fade-in" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute bottom-14 right-0 w-[min(88vw,340px)] max-h-[60vh] overflow-y-auto rounded-3xl glass-strong p-2 pop-in [transform-origin:bottom_right]" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center px-2 pb-1">
                   <span className="text-xs uppercase tracking-wide text-muted font-semibold">{{ subs: 'Subtitles', audio: 'Audio', quality: 'Quality', speed: 'Playback speed', info: 'Playback info' }[menu]}</span>
                   <button className="ml-auto p-1 text-muted hover:text-white" onClick={() => setMenu(null)}><X className="size-4" /></button>
@@ -988,7 +989,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
 
 function CtrlBtn({ children, label, onClick, active }: { children: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
   return (
-    <button onClick={(e) => { e.stopPropagation(); onClick() }} title={label} aria-label={label} className={`icon-btn !size-10 md:!size-11 ${active ? '!bg-white/20' : '!bg-transparent hover:!bg-white/10'}`}>
+    <button onClick={(e) => { e.stopPropagation(); onClick() }} title={label} aria-label={label} className={`icon-btn-plain !size-10 md:!size-11 ${active ? '!bg-white/20' : '!bg-transparent hover:!bg-white/10'}`}>
       {children}
     </button>
   )

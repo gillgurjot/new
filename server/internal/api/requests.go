@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strconv"
@@ -91,16 +92,19 @@ func (s *Server) seerrErr(w http.ResponseWriter, err error) {
 
 func (s *Server) requestsConfig(w http.ResponseWriter, r *http.Request) {
 	u := userFrom(r)
-	writeJSON(w, 200, map[string]any{"enabled": s.Seerr.Enabled(), "canRequest": s.Seerr.Enabled() && u.CanRequest, "seerrUrl": s.Cfg.SeerrPublicURL})
+	on := s.seerr().Enabled()
+	writeJSON(w, 200, map[string]any{"enabled": on, "canRequest": on && u.CanRequest, "seerrUrl": s.seerrPublicURL()})
 }
 
 func (s *Server) requireSeerr(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !s.Seerr.Enabled() {
-			writeErr(w, 404, "requests aren't set up (SEERR_URL / SEERR_API_KEY)")
+		c := s.seerr()
+		if c == nil {
+			writeErr(w, 404, "requests aren't set up: connect Seerr on the admin page")
 			return
 		}
-		next.ServeHTTP(w, r)
+		// The handlers keep using this client even if Seerr is changed meanwhile.
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), seerrKey, c)))
 	})
 }
 
@@ -111,7 +115,7 @@ func (s *Server) requestsSearch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"results": []Title{}, "page": 1, "totalPages": 0})
 		return
 	}
-	p, err := s.Seerr.Search(r.Context(), query, page)
+	p, err := seerrFrom(r).Search(r.Context(), query, page)
 	if err != nil {
 		s.seerrErr(w, err)
 		return
@@ -121,7 +125,7 @@ func (s *Server) requestsSearch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) requestsDiscover(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	p, err := s.Seerr.Discover(r.Context(), chi.URLParam(r, "kind"), page)
+	p, err := seerrFrom(r).Discover(r.Context(), chi.URLParam(r, "kind"), page)
 	if err != nil {
 		s.seerrErr(w, err)
 		return
@@ -137,7 +141,7 @@ func (s *Server) requestsDetails(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad title")
 		return
 	}
-	d, err := s.Seerr.Details(r.Context(), mt, id, true)
+	d, err := seerrFrom(r).Details(r.Context(), mt, id, true)
 	if err != nil {
 		s.seerrErr(w, err)
 		return
@@ -225,8 +229,8 @@ func (s *Server) requestsCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad request")
 		return
 	}
-	asUser := s.Seerr.UserFor(r.Context(), u.Email)
-	if err := s.Seerr.Request(r.Context(), asUser, b.MediaType, b.TMDBID, b.Seasons); err != nil {
+	asUser := seerrFrom(r).UserFor(r.Context(), u.Email)
+	if err := seerrFrom(r).Request(r.Context(), asUser, b.MediaType, b.TMDBID, b.Seasons); err != nil {
 		s.seerrErr(w, err)
 		return
 	}
@@ -245,7 +249,7 @@ type recentRequest struct {
 
 func (s *Server) requestsRecent(w http.ResponseWriter, r *http.Request) {
 	u := userFrom(r)
-	reqs, err := s.Seerr.Recent(r.Context(), 30)
+	reqs, err := seerrFrom(r).Recent(r.Context(), 30)
 	if err != nil {
 		s.seerrErr(w, err)
 		return
@@ -260,7 +264,7 @@ func (s *Server) requestsRecent(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			if d, err := s.Seerr.Details(r.Context(), rq.Media.MediaType, rq.Media.TMDBID, false); err == nil {
+			if d, err := seerrFrom(r).Details(r.Context(), rq.Media.MediaType, rq.Media.TMDBID, false); err == nil {
 				details[i] = d
 			}
 		}()
@@ -290,4 +294,11 @@ func (s *Server) requestsRecent(w http.ResponseWriter, r *http.Request) {
 		out = append(out, recentRequest{ID: rq.ID, Status: st, CreatedAt: rq.CreatedAt, RequestedBy: by, Seasons: seasons, Title: t})
 	}
 	writeJSON(w, 200, out)
+}
+
+const seerrKey ctxKey = 2
+
+func seerrFrom(r *http.Request) *seerr.Client {
+	c, _ := r.Context().Value(seerrKey).(*seerr.Client)
+	return c
 }

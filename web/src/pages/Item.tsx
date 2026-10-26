@@ -55,6 +55,7 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
   const backdropId = item.type === 'movie' || item.type === 'series' ? item.id : item.seriesId
   const backdrop = item.images.backdrop ? imageUrl(item, 'backdrop', 1600) : backdropId ? `/api/images/${backdropId}/backdrop?w=1600` : landscapeUrl(item, 1600)
   const logo = item.type === 'movie' || item.type === 'series' ? imageUrl(item, 'logo', 420) : undefined
+  const brightLogo = useBrightLogo(logo)
 
   // For series/seasons the play button targets the next unwatched episode.
   const episodes = useQuery({
@@ -96,35 +97,35 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
 
       <div className="relative -mt-32 md:mt-0 md:pt-36 px-4 md:px-10 flex flex-col md:flex-row gap-8 items-start">
         {item.type !== 'episode' && (
-          <div className="hidden md:block w-60 lg:w-64 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl shadow-black/60 ring-1 ring-white/10">
+          <div className="hidden md:block w-60 lg:w-64 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/15">
             <Img src={posterUrl(item, 300)} alt={item.title} className="size-full" />
           </div>
         )}
         {item.type === 'episode' && (
-          <div className="hidden md:block w-[400px] shrink-0 aspect-video rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
+          <div className="hidden md:block w-[400px] shrink-0 aspect-video rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/15">
             <Img src={landscapeUrl(item, 640)} alt={item.title} className="size-full" />
           </div>
         )}
         <div className="flex-1 min-w-0 w-full fade-in">
           {item.seriesTitle && (
-            <Link to={`/item/${item.seriesId}`} className="inline-block text-accent hover:text-white font-semibold text-sm mb-1 transition">{item.seriesTitle}</Link>
+            <Link to={`/item/${item.seriesId}`} className="inline-block text-accent hover:text-fg font-semibold text-sm mb-1 transition">{item.seriesTitle}</Link>
           )}
           {logo ? (
-            <img src={logo} alt={item.title} className="max-h-24 md:max-h-32 max-w-[80%] object-contain object-left mb-4 drop-shadow-[0_4px_24px_rgba(0,0,0,.6)]" />
+            <img src={logo} alt={item.title} className={`${brightLogo ? 'title-logo' : ''} max-h-24 md:max-h-32 max-w-[80%] object-contain object-left mb-4 dark:drop-shadow-[0_4px_24px_rgba(0,0,0,.6)]`} />
           ) : (
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-tight mb-3">{item.title}</h1>
           )}
           <Meta
-            className="text-sm text-white/75 font-medium mb-4"
+            className="text-sm text-fg/75 font-medium mb-4"
             parts={[
-              item.type === 'episode' ? <span className="text-white">{episodeLabel(item)}</span> : null,
+              item.type === 'episode' ? <span className="text-fg">{episodeLabel(item)}</span> : null,
               item.year || null,
               item.rating ? <span className="inline-flex items-center gap-1"><Star className="size-3.5 fill-amber-400 text-amber-400" />{item.rating.toFixed(1)}</span> : null,
               item.contentRating ? <span className="chip">{item.contentRating}</span> : null,
               isPlayable ? formatRuntime(item.runtime, item.duration) : null,
               item.type === 'series' && item.childCount ? plural(item.childCount, 'season') : null,
               item.media ? <span className="chip">{resolutionLabel(item.media.width, item.media.height)}</span> : null,
-              item.media?.hdr ? <span className="chip !border-amber-300/50 !text-amber-200">{item.media.hdr === 'dovi' ? 'Dolby Vision' : item.media.hdr.toUpperCase()}</span> : null,
+              item.media?.hdr ? <span className="chip !border-amber-500/50 !text-amber-500">{item.media.hdr === 'dovi' ? 'Dolby Vision' : item.media.hdr.toUpperCase()}</span> : null,
             ]}
           />
 
@@ -151,7 +152,7 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
               {isPlayable && user.canDownload && item.media && (
                 <a href={downloadUrl(item.id)} download onClick={() => toast(`Downloading ${bytes(item.media!.size)}`, 'info')} className="group flex flex-col items-center gap-1.5 w-16" title={`Download original file (${bytes(item.media.size)})`}>
                   <span className="icon-btn !size-11"><Download className="size-5" /></span>
-                  <span className="text-[11px] text-muted group-hover:text-white transition">Download</span>
+                  <span className="text-[11px] text-muted group-hover:text-fg transition">Download</span>
                 </a>
               )}
               {user.isAdmin && (item.type === 'movie' || item.type === 'series') && <AdminMenu item={item} onChange={onChange} />}
@@ -159,21 +160,21 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
           </div>
           {playTarget && progressPct(playTarget) > 0 && !playTarget.userData?.played && (
             <div className="mb-5 max-w-sm flex items-center gap-3 text-xs text-muted">
-              <div className="flex-1 h-1 rounded-full bg-white/15 overflow-hidden">
-                <div className="h-full rounded-full bg-white" style={{ width: `${progressPct(playTarget)}%` }} />
+              <div className="flex-1 h-1 rounded-full bg-fg/15 overflow-hidden">
+                <div className="h-full rounded-full bg-fg" style={{ width: `${progressPct(playTarget)}%` }} />
               </div>
               {formatTime(Math.max(0, (playTarget.duration || 0) - resumePos))} left
             </div>
           )}
 
-          {item.tagline && <p className="italic text-white/60 mb-2">{item.tagline}</p>}
+          {item.tagline && <p className="italic text-fg/60 mb-2">{item.tagline}</p>}
           <Overview text={item.overview} />
           {item.genres.length > 0 && <div className="text-sm text-muted mt-4">{item.genres.join(' · ')}</div>}
           {item.media && <AudioLine item={item} />}
           {directors.length > 0 && (
             <div className="text-sm text-muted mt-1.5">
               {directors[0].role === 'creator' ? 'Created by ' : 'Directed by '}
-              <span className="text-white/85">{directors.map((d) => d.name).join(', ')}</span>
+              <span className="text-fg/85">{directors.map((d) => d.name).join(', ')}</span>
             </div>
           )}
         </div>
@@ -185,8 +186,8 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
           <Row title={item.type === 'episode' ? 'Guest stars' : 'Cast'}>
             {cast.map((p, i) => (
               <div key={p.name + i} className="!w-[96px] md:!w-[120px]">
-                <div className="aspect-square rounded-full overflow-hidden bg-surface-2 ring-1 ring-white/[.06]">
-                  <Img src={personImage(p.profile)} alt={p.name} className="size-full" fallback={<span className="text-2xl font-semibold text-white/30">{p.name.slice(0, 1)}</span>} />
+                <div className="aspect-square rounded-full overflow-hidden bg-surface-2 ring-1 ring-fg/[.06]">
+                  <Img src={personImage(p.profile)} alt={p.name} className="size-full" fallback={<span className="text-2xl font-semibold text-fg/30">{p.name.slice(0, 1)}</span>} />
                 </div>
                 <div className="text-center mt-2">
                   <div className="text-[13px] font-medium truncate">{p.name}</div>
@@ -202,6 +203,35 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
   )
 }
 
+/** True when a title logo is mostly white, so it needs a shadow on the light theme. */
+function useBrightLogo(src?: string) {
+  const [bright, setBright] = useState(false)
+  useEffect(() => {
+    setBright(false)
+    if (!src) return
+    const img = new Image()
+    img.onload = () => {
+      const c = document.createElement('canvas')
+      c.width = 64
+      c.height = 24
+      const g = c.getContext('2d')
+      if (!g) return
+      g.drawImage(img, 0, 0, c.width, c.height)
+      const d = g.getImageData(0, 0, c.width, c.height).data
+      let sum = 0
+      let n = 0
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 128) continue
+        sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]
+        n++
+      }
+      setBright(n > 0 && sum / n > 170)
+    }
+    img.src = src
+  }, [src])
+  return bright
+}
+
 const langNames: Record<string, string> = { eng: 'English', hin: 'Hindi', pan: 'Punjabi', spa: 'Spanish', fre: 'French', fra: 'French', ger: 'German', deu: 'German', ita: 'Italian', jpn: 'Japanese', kor: 'Korean', tam: 'Tamil', tel: 'Telugu', urd: 'Urdu', chi: 'Chinese', zho: 'Chinese', rus: 'Russian', por: 'Portuguese', ara: 'Arabic' }
 
 /** "Audio: Hindi 5.1 · English Stereo" — shows there's a choice before pressing play. */
@@ -211,7 +241,7 @@ function AudioLine({ item }: { item: ItemDetail }) {
   const ch = (n?: number) => (n === 6 ? '5.1' : n === 8 ? '7.1' : n === 2 ? 'Stereo' : n === 1 ? 'Mono' : n ? `${n}ch` : '')
   return (
     <div className="text-sm text-muted mt-1.5">
-      Audio: <span className="text-white/85">{audio.map((a) => [langNames[a.language || ''] || (a.language || 'Unknown').toUpperCase(), ch(a.channels)].filter(Boolean).join(' ')).join(' · ')}</span>
+      Audio: <span className="text-fg/85">{audio.map((a) => [langNames[a.language || ''] || (a.language || 'Unknown').toUpperCase(), ch(a.channels)].filter(Boolean).join(' ')).join(' · ')}</span>
       <span className="text-muted"> — change it in the player</span>
     </div>
   )
@@ -220,8 +250,8 @@ function AudioLine({ item }: { item: ItemDetail }) {
 function ActionBtn({ label, title, onClick, on, children }: { label: string; title?: string; onClick: () => void; on?: boolean; children: React.ReactNode }) {
   return (
     <button onClick={onClick} className="group flex flex-col items-center gap-1.5 w-16" title={title || label} aria-label={title || label} aria-pressed={on}>
-      <span className={`icon-btn !size-11 ${on ? '!bg-white !text-black' : ''}`}>{children}</span>
-      <span className="text-[11px] text-muted group-hover:text-white transition truncate max-w-full">{label}</span>
+      <span className={`icon-btn !size-11 ${on ? '!bg-fg !text-bg' : ''}`}>{children}</span>
+      <span className="text-[11px] text-muted group-hover:text-fg transition truncate max-w-full">{label}</span>
     </button>
   )
 }
@@ -232,9 +262,9 @@ function Overview({ text }: { text?: string }) {
   const long = text.length > 220
   return (
     <div className="max-w-3xl">
-      <p className={`text-[15px] text-white/80 leading-relaxed ${open || !long ? '' : 'line-clamp-3'}`}>{text}</p>
+      <p className={`text-[15px] text-fg/80 leading-relaxed ${open || !long ? '' : 'line-clamp-3'}`}>{text}</p>
       {long && (
-        <button onClick={() => setOpen((o) => !o)} className="mt-1 text-sm font-medium text-white/60 hover:text-white inline-flex items-center gap-1">
+        <button onClick={() => setOpen((o) => !o)} className="mt-1 text-sm font-medium text-fg/60 hover:text-fg inline-flex items-center gap-1">
           {open ? 'Less' : 'More'} <ChevronDown className={`size-4 transition ${open ? 'rotate-180' : ''}`} />
         </button>
       )}
@@ -265,7 +295,7 @@ function Seasons({ item, episodes }: { item: ItemDetail; episodes?: Item[] }) {
             className={sel === s.id ? 'pill-on' : 'pill'}
           >
             {s.title}
-            {s.unplayedCount ? <span className={`text-xs ${sel === s.id ? 'text-black/50' : 'text-white/40'}`}>{s.unplayedCount}</span> : null}
+            {s.unplayedCount ? <span className={`text-xs ${sel === s.id ? 'text-bg/50' : 'text-fg/40'}`}>{s.unplayedCount}</span> : null}
           </button>
         ))}
       </div>
@@ -281,13 +311,13 @@ function EpisodeRow({ ep }: { ep: Item }) {
   const user = useUser()
   const pct = progressPct(ep)
   return (
-    <div className="group flex gap-3.5 p-2 -mx-2 rounded-2xl hover:bg-white/[.04] transition">
-      <Link to={`/play/${ep.id}`} className="relative w-36 sm:w-48 shrink-0 aspect-video rounded-xl overflow-hidden bg-surface-2 ring-1 ring-inset ring-white/[.06]">
+    <div className="group flex gap-3.5 p-2 -mx-2 rounded-3xl hover:bg-fg/[.05] transition">
+      <Link to={`/play/${ep.id}`} className="relative w-36 sm:w-48 shrink-0 aspect-video rounded-2xl overflow-hidden bg-surface-2 ring-1 ring-inset ring-white/10">
         <Img src={landscapeUrl(ep, 320)} alt={ep.title} className="size-full" />
         <div className="absolute inset-0 grid place-items-center bg-black/0 group-hover:bg-black/35 transition">
           <Play className="size-7 fill-white text-white opacity-0 group-hover:opacity-100 transition drop-shadow" />
         </div>
-        {ep.userData?.played && <span className="absolute top-1.5 right-1.5 size-5 rounded-full bg-black/60 backdrop-blur grid place-items-center"><Check className="size-3" strokeWidth={3} /></span>}
+        {ep.userData?.played && <span className="absolute top-1.5 right-1.5 size-5 rounded-full glass-dark text-white grid place-items-center"><Check className="size-3" strokeWidth={3} /></span>}
         {pct > 0 && <div className="absolute bottom-1.5 inset-x-1.5 h-1 rounded-full bg-white/25 overflow-hidden"><div className="h-full bg-white" style={{ width: `${pct}%` }} /></div>}
       </Link>
       <div className="min-w-0 flex-1 py-0.5 flex flex-col">
@@ -296,11 +326,11 @@ function EpisodeRow({ ep }: { ep: Item }) {
             {ep.seasonNumber === 0 ? 'Special' : 'Episode'} {ep.episodeNumber}{ep.episodeEnd ? `–${ep.episodeEnd}` : ''} · {formatRuntime(ep.runtime, ep.duration)}
           </div>
           <div className="font-semibold text-[15px] leading-snug line-clamp-2">{ep.title}</div>
-          <p className="text-[13px] text-white/60 mt-1 line-clamp-2 hidden sm:block">{ep.overview}</p>
+          <p className="text-[13px] text-fg/60 mt-1 line-clamp-2 hidden sm:block">{ep.overview}</p>
         </Link>
       </div>
       {user.canDownload && (
-        <a href={downloadUrl(ep.id)} download onClick={() => toast('Download started', 'info')} className="self-center icon-btn !size-9 !bg-transparent text-white/50 hover:!bg-white/10 hover:text-white" title="Download original file" aria-label={`Download ${ep.title}`}>
+        <a href={downloadUrl(ep.id)} download onClick={() => toast('Download started', 'info')} className="self-center icon-btn-plain !size-9 text-fg/50 hover:text-fg" title="Download original file" aria-label={`Download ${ep.title}`}>
           <Download className="size-[18px]" />
         </a>
       )}
@@ -355,7 +385,7 @@ function AdminMenu({ item, onChange }: { item: Item; onChange: () => void }) {
     <div className="relative">
       <button onClick={() => setOpen((o) => !o)} className="group flex flex-col items-center gap-1.5 w-16" title="More">
         <span className="icon-btn !size-11">{busy ? <Spinner className="size-5" /> : <MoreHorizontal className="size-5" />}</span>
-        <span className="text-[11px] text-muted group-hover:text-white transition">More</span>
+        <span className="text-[11px] text-muted group-hover:text-fg transition">More</span>
       </button>
       <Menu open={open} onClose={() => setOpen(false)} className="!right-auto -left-32 sm:left-0">
         <MenuItem icon={<RefreshCw className="size-4" />} onClick={refresh}>Refresh metadata</MenuItem>
@@ -391,9 +421,9 @@ function IdentifyDialog({ open, item, onClose, onDone }: { open: boolean; item: 
       </form>
       <div className="space-y-1">
         {res.isLoading && <Spinner />}
-        {res.error && <p className="text-sm text-red-300">{(res.error as Error).message}</p>}
+        {res.error && <p className="text-sm text-red-500">{(res.error as Error).message}</p>}
         {res.data?.map((m) => (
-          <button key={m.id} onClick={() => pick(m)} className="w-full flex gap-3 p-2 rounded-xl hover:bg-white/[.06] text-left">
+          <button key={m.id} onClick={() => pick(m)} className="w-full flex gap-3 p-2 rounded-2xl hover:bg-fg/[.06] text-left">
             <Img src={m.poster} alt={m.title} className="w-12 aspect-[2/3] rounded-md shrink-0" />
             <div className="min-w-0">
               <div className="font-semibold">{m.title} <span className="text-muted font-normal">{m.year || ''}</span></div>

@@ -204,3 +204,10 @@ func (s *Store) SetSynced(userID, itemID, at int64, jfState string) {
 	_, _ = s.DB.Exec(`INSERT INTO jellyfin_sync(user_id, item_id, synced_at, jf_state) VALUES (?,?,?,?)
 		ON CONFLICT(user_id, item_id) DO UPDATE SET synced_at=excluded.synced_at, jf_state=excluded.jf_state`, userID, itemID, at, jfState)
 }
+
+// ForgetJellyfin drops every item link and sync record, for when Lumen is pointed at a
+// different Jellyfin server: the next sync then starts fresh like the first one did.
+func (s *Store) ForgetJellyfin() error {
+	_, err := s.DB.Exec(`DELETE FROM jellyfin_sync; DELETE FROM jellyfin_items;`)
+	return err
+}

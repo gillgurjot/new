@@ -23,14 +23,14 @@ export function Progress({ pct, className = '' }: { pct: number; className?: str
 function Badge({ item }: { item: Item }) {
   if (item.userData?.played) {
     return (
-      <span className="absolute top-2 right-2 size-6 rounded-full bg-black/55 backdrop-blur-md ring-1 ring-white/15 grid place-items-center" title="Watched">
+      <span className="absolute top-2 right-2 size-6 rounded-full glass-dark text-white grid place-items-center" title="Watched">
         <Check className="size-3.5" strokeWidth={3} />
       </span>
     )
   }
   if (item.type === 'series' && item.unplayedCount) {
     return (
-      <span className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-accent-strong text-[11px] font-bold grid place-items-center shadow-lg" title={`${item.unplayedCount} unwatched`}>
+      <span className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-accent-strong text-white text-[11px] font-bold grid place-items-center shadow-lg" title={`${item.unplayedCount} unwatched`}>
         {item.unplayedCount > 99 ? '99+' : item.unplayedCount}
       </span>
     )
@@ -38,7 +38,7 @@ function Badge({ item }: { item: Item }) {
   return null
 }
 
-const frame = 'relative overflow-hidden rounded-xl bg-surface-2 ring-1 ring-inset ring-white/[.06] transition duration-300 group-hover:ring-white/30 group-active:scale-[.98]'
+const frame = 'relative overflow-hidden rounded-2xl bg-surface-2 shadow-[0_10px_30px_-14px_rgb(0_0_0/.55)] after:absolute after:inset-0 after:rounded-[inherit] after:pointer-events-none after:shadow-[inset_0_1px_0_rgb(255_255_255/.22),inset_0_0_0_1px_rgb(255_255_255/.07)] transition duration-500 ease-[var(--ease-liquid)] group-hover:-translate-y-1 group-hover:shadow-[0_18px_40px_-16px_rgb(0_0_0/.6)] group-active:scale-[.97]'
 
 export function PosterCard({ item, className = '' }: { item: Item; className?: string }) {
   const prefetch = usePrefetch()
@@ -70,7 +70,7 @@ export function WideCard({ item, className = '', play = false }: { item: Item; c
         <Img src={landscapeUrl(item, 400)} alt={title} className="absolute inset-0 size-full group-hover:scale-[1.03] transition-transform duration-500" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
         <div className="absolute inset-0 hidden md:grid place-items-center bg-black/0 group-hover:bg-black/25 transition">
-          <span className="size-12 rounded-full bg-white/95 text-black grid place-items-center shadow-xl opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition">
+          <span className="size-12 rounded-full glass-dark text-white grid place-items-center opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition">
             <Play className="size-5 fill-current ml-0.5" />
           </span>
         </div>
@@ -88,7 +88,7 @@ export function WideCard({ item, className = '', play = false }: { item: Item; c
 export function CardSkeleton({ wide = false }: { wide?: boolean }) {
   return (
     <div>
-      <div className={`skeleton rounded-xl ${wide ? 'aspect-video' : 'aspect-[2/3]'}`} />
+      <div className={`skeleton rounded-2xl ${wide ? 'aspect-video' : 'aspect-[2/3]'}`} />
       <div className="skeleton h-3 rounded mt-2 w-3/4" />
     </div>
   )

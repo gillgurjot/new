@@ -101,10 +101,11 @@ func TestJellyfinSync(t *testing.T) {
 	}}
 	srv := httptest.NewServer(fake)
 	defer srv.Close()
-	r := &Runner{St: st, Jellyfin: jellyfin.New(srv.URL, "k"), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	r := &Runner{St: st, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	jf := jellyfin.New(srv.URL, "k")
 	ctx := context.Background()
 
-	res, err := r.syncJellyfin(ctx)
+	res, err := r.syncJellyfin(ctx, jf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +125,7 @@ func TestJellyfinSync(t *testing.T) {
 	}
 
 	// Nothing changed: nothing to do.
-	if res, _ = r.syncJellyfin(ctx); res.pulled+res.pushed != 0 {
+	if res, _ = r.syncJellyfin(ctx, jf); res.pulled+res.pushed != 0 {
 		t.Fatalf("idle sync did work: %+v", res)
 	}
 
@@ -137,7 +138,7 @@ func TestJellyfinSync(t *testing.T) {
 	if err := st.SetPlayed(1, 1, true); err != nil {
 		t.Fatal(err)
 	}
-	if res, _ = r.syncJellyfin(ctx); res.pulled != 1 || res.pushed != 1 {
+	if res, _ = r.syncJellyfin(ctx, jf); res.pulled != 1 || res.pushed != 1 {
 		t.Fatalf("second sync: %+v", res)
 	}
 	rows, _ = st.UserDataRows(1)
@@ -147,7 +148,7 @@ func TestJellyfinSync(t *testing.T) {
 	if !fake.items["m1"].UserData.Played {
 		t.Fatal("movie played not pushed")
 	}
-	if res, _ = r.syncJellyfin(ctx); res.pulled+res.pushed != 0 {
+	if res, _ = r.syncJellyfin(ctx, jf); res.pulled+res.pushed != 0 {
 		t.Fatalf("sync after changes not idle: %+v", res)
 	}
 }

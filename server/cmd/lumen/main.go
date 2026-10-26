@@ -19,12 +19,10 @@ import (
 	"github.com/gillgurjot/lumen/internal/db"
 	"github.com/gillgurjot/lumen/internal/hwaccel"
 	"github.com/gillgurjot/lumen/internal/images"
-	"github.com/gillgurjot/lumen/internal/jellyfin"
 	"github.com/gillgurjot/lumen/internal/jobs"
 	"github.com/gillgurjot/lumen/internal/library"
 	"github.com/gillgurjot/lumen/internal/metadata"
 	"github.com/gillgurjot/lumen/internal/party"
-	"github.com/gillgurjot/lumen/internal/seerr"
 	"github.com/gillgurjot/lumen/internal/store"
 	"github.com/gillgurjot/lumen/internal/stream"
 	"github.com/gillgurjot/lumen/web"
@@ -80,18 +78,12 @@ func main() {
 		TrickplayDir: filepath.Join(cfg.ConfigDir, "trickplay"), Trickplay: os.Getenv("LUMEN_TRICKPLAY") != "false",
 		Credits:      os.Getenv("LUMEN_CREDITS_DETECTION") != "false",
 		Intro:        os.Getenv("LUMEN_INTRO_DETECTION") != "false",
-		ScanInterval: cfg.ScanInterval, Log: log,
-		Jellyfin:     jellyfin.New(cfg.JellyfinURL, cfg.JellyfinAPIKey), JellyfinInterval: cfg.JellyfinSyncInterval}
-	if runner.Jellyfin.Enabled() {
-		log.Info("syncing watch history with Jellyfin", "url", cfg.JellyfinURL, "every", cfg.JellyfinSyncInterval)
-	}
+		ScanInterval: cfg.ScanInterval, Log: log, JellyfinInterval: cfg.JellyfinSyncInterval}
 
 	srv := &api.Server{Cfg: cfg, St: st, Auth: auth.New(cfg, st, log), Images: img, Scanner: scanner, Watcher: watcher,
 		Fetcher: fetcher, TMDB: tmdb, Streams: streams, Subs: stream.NewSubtitles(cfg.FFmpeg, filepath.Join(cfg.ConfigDir, "cache")),
-		Jobs: runner, Log: log, Web: web.FS(), Ctx: ctx, StartedAt: time.Now(), Party: party.NewHub(), Seerr: seerr.New(cfg.SeerrURL, cfg.SeerrAPIKey)}
-	if srv.Seerr.Enabled() {
-		log.Info("requests enabled through Seerr", "url", cfg.SeerrURL)
-	}
+		Jobs: runner, Log: log, Web: web.FS(), Ctx: ctx, StartedAt: time.Now(), Party: party.NewHub()}
+	srv.LoadIntegrations()
 	if srv.Web == nil {
 		log.Warn("web UI not embedded; build it with `npm run build` in web/")
 	}

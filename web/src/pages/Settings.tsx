@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut } from 'lucide-react'
+import { LogOut, Monitor, Moon, Sun } from 'lucide-react'
 import { Avatar, PageTitle, toast } from '../components/ui'
 import { put } from '../api/client'
 import type { User } from '../api/types'
 import { signOut } from '../components/Layout'
 import { detectProfile } from '../lib/device'
 import { loadPrefs, qualityOptions, savePrefs } from '../lib/prefs'
+import { setThemeMode, useThemeMode, type ThemeMode } from '../lib/theme'
 import { useUser } from '../lib/user'
 
 export const languages: [string, string][] = [
@@ -45,6 +46,10 @@ export default function SettingsPage() {
           <button onClick={signOut} className="btn-ghost !h-10"><LogOut className="size-4" /> Sign out</button>
         </div>
         <p className="text-xs text-muted">Your name, picture and admin access come from Pocket ID.</p>
+      </Section>
+
+      <Section title="Appearance">
+        <ThemePicker />
       </Section>
 
       <Section title="Languages">
@@ -121,14 +126,43 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 export function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="w-full flex items-center justify-between gap-4 py-1 text-left">
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="group w-full flex items-center justify-between gap-4 py-1 text-left">
       <span className="min-w-0">
         <span className="block text-sm font-medium">{label}</span>
         {hint && <span className="block text-xs text-muted mt-0.5">{hint}</span>}
       </span>
-      <span className={`w-11 h-[26px] shrink-0 rounded-full p-[3px] transition ${checked ? 'bg-accent-strong' : 'bg-white/15'}`}>
-        <span className={`block size-5 rounded-full bg-white shadow transition ${checked ? 'translate-x-[18px]' : ''}`} />
+      <span className={`w-12 h-[26px] shrink-0 rounded-full p-[3px] transition ${checked ? 'bg-accent-strong' : 'bg-fg/15'} shadow-[inset_0_1px_2px_rgb(0_0_0/.2)]`}>
+        <span className={`block h-5 w-5 rounded-full bg-white shadow-[0_2px_6px_rgb(0_0_0/.3),inset_0_1px_0_rgb(255_255_255)] transition-all duration-300 ease-[var(--ease-liquid)] group-active:w-6 ${checked ? 'translate-x-[18px] group-active:translate-x-[14px]' : ''}`} />
       </span>
     </button>
+  )
+}
+
+const themes: { v: ThemeMode; l: string; icon: React.ReactNode }[] = [
+  { v: 'system', l: 'Automatic', icon: <Monitor className="size-4" /> },
+  { v: 'light', l: 'Light', icon: <Sun className="size-4" /> },
+  { v: 'dark', l: 'Dark', icon: <Moon className="size-4" /> },
+]
+
+/** Segmented control; the selected segment is a sliding glass bubble. */
+function ThemePicker() {
+  const mode = useThemeMode()
+  const i = themes.findIndex((t) => t.v === mode)
+  return (
+    <div>
+      <div className="relative grid grid-cols-3 p-1 rounded-full bg-fg/[.06] max-w-md">
+        <span
+          className="absolute top-1 bottom-1 left-1 rounded-full glass transition-transform duration-500 ease-[var(--ease-liquid)]"
+          style={{ width: 'calc((100% - 0.5rem) / 3)', transform: `translateX(${i * 100}%)` }}
+          aria-hidden
+        />
+        {themes.map((t) => (
+          <button key={t.v} onClick={() => setThemeMode(t.v)} className={`relative h-10 rounded-full inline-flex items-center justify-center gap-2 text-sm font-medium transition ${mode === t.v ? 'text-fg' : 'text-fg/55 hover:text-fg'}`} aria-pressed={mode === t.v}>
+            {t.icon} {t.l}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted mt-2">Automatic follows this device’s light or dark setting. The player is always dark.</p>
+    </div>
   )
 }

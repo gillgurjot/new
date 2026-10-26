@@ -79,10 +79,11 @@ export default function LibraryPage() {
         {lib?.name || 'Library'}
       </PageTitle>
 
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] md:top-16 z-30 -mx-4 md:-mx-10 px-4 md:px-10 py-2.5 mb-4 bg-bg/85 backdrop-blur-xl">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+      <div className="sticky top-[calc(max(0.625rem,env(safe-area-inset-top))+4rem)] z-30 mb-5 w-fit max-w-full">
+        <div className="absolute inset-0 rounded-full glass-bar" aria-hidden />
+        <div className="relative flex items-center gap-1.5 p-1.5 overflow-x-auto scrollbar-none rounded-full">
           <Select value={sort} onChange={(v) => set('sort', v)} options={sorts.map((x) => [x.v, x.l])} />
-          <button onClick={() => set('order', order === 'asc' ? 'desc' : 'asc')} className="icon-btn !size-9 !bg-white/[.07]" title={order === 'asc' ? 'Ascending' : 'Descending'}>
+          <button onClick={() => set('order', order === 'asc' ? 'desc' : 'asc')} className="icon-btn-plain !size-9 bg-fg/[.07]" title={order === 'asc' ? 'Ascending' : 'Descending'}>
             {order === 'asc' ? <ArrowUpNarrowWide className="size-4" /> : <ArrowDownWideNarrow className="size-4" />}
           </button>
           <span className="w-px h-5 bg-line shrink-0 mx-1" />
@@ -97,9 +98,9 @@ export default function LibraryPage() {
 
       {sort === 'title' && (
         <div className="flex gap-0.5 overflow-x-auto scrollbar-none mb-5 -mx-1">
-          <button onClick={() => set('letter', '')} className={`px-2.5 h-8 rounded-lg text-xs font-semibold shrink-0 transition ${!letter ? 'bg-white/[.12] text-white' : 'text-white/45 hover:text-white'}`}>All</button>
+          <button onClick={() => set('letter', '')} className={`px-2.5 h-8 rounded-full text-xs font-semibold shrink-0 transition ${!letter ? 'bg-fg/[.12] text-fg' : 'text-fg/45 hover:text-fg'}`}>All</button>
           {letters.map((l) => (
-            <button key={l} onClick={() => set('letter', l === letter ? '' : l)} className={`w-7 h-8 rounded-lg text-xs font-semibold shrink-0 transition ${letter === l ? 'bg-white text-black' : 'text-white/45 hover:text-white'}`}>{l}</button>
+            <button key={l} onClick={() => set('letter', l === letter ? '' : l)} className={`w-8 h-8 rounded-full text-xs font-semibold shrink-0 transition ${letter === l ? 'bg-fg text-bg' : 'text-fg/45 hover:text-fg'}`}>{l}</button>
           ))}
         </div>
       )}

@@ -61,17 +61,16 @@ export default function Layout() {
   }, [nav])
 
   const link = ({ isActive }: { isActive: boolean }) =>
-    `relative px-3 h-9 inline-flex items-center rounded-full text-sm font-medium transition ${isActive ? 'text-white bg-white/[.1]' : 'text-white/60 hover:text-white'}`
+    `relative px-3.5 h-9 inline-flex items-center rounded-full text-sm font-medium transition duration-300 ${isActive ? 'text-fg bg-fg/[.1] shadow-[inset_0_1px_0_var(--glass-rim)]' : 'text-fg/60 hover:text-fg'}`
 
   return (
-    <div className="min-h-dvh pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">
-      <header
-        className={`fixed top-0 inset-x-0 z-40 transition-[background-color,border-color,backdrop-filter] duration-300 border-b ${scrolled ? 'bg-bg/92 backdrop-blur-xl border-line' : 'bg-gradient-to-b from-black/60 to-transparent border-transparent'}`}
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
-        <div className="flex items-center gap-6 h-14 md:h-16 px-4 md:px-10">
-          <Logo />
-          <nav className="hidden md:flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-none">
+    <div className="min-h-dvh pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-0">
+      {/* Floating glass bar. The glass is its own layer so the account menu's overlay isn't trapped by backdrop-filter. */}
+      <header className="fixed top-0 inset-x-0 z-40 px-3 md:px-6 pointer-events-none" style={{ paddingTop: 'max(0.625rem, env(safe-area-inset-top))' }}>
+        <div className="relative pointer-events-auto mx-auto max-w-[1680px] flex items-center gap-4 md:gap-6 h-14 pl-4 pr-2 md:pl-5">
+          <div className={`absolute inset-0 rounded-full glass-bar transition-opacity duration-500 ${scrolled ? 'opacity-100' : 'opacity-90'}`} aria-hidden />
+          <Logo className="relative" />
+          <nav className="relative hidden md:flex items-center gap-0.5 min-w-0 overflow-x-auto scrollbar-none">
             <NavLink to="/" end className={link}>Home</NavLink>
             {libs.data?.map((l) => (
               <NavLink key={l.id} to={`/library/${l.id}`} className={link}>{l.name}</NavLink>
@@ -79,12 +78,12 @@ export default function Layout() {
             <NavLink to="/favorites" className={link}>My list</NavLink>
             {canRequest && <NavLink to="/requests" className={link}>Requests</NavLink>}
           </nav>
-          <div className="ml-auto flex items-center gap-1.5">
-            <Link to="/search" className="hidden md:inline-flex icon-btn !bg-transparent hover:!bg-white/10" aria-label="Search (/)" title="Search (/)">
+          <div className="relative ml-auto flex items-center gap-1.5">
+            <Link to="/search" className="hidden md:inline-flex icon-btn-plain !size-10" aria-label="Search (/)" title="Search (/)">
               <Search className="size-5" />
             </Link>
             <div className="relative">
-              <button onClick={() => setMenu((m) => !m)} className="rounded-full ring-2 ring-transparent hover:ring-white/20 transition" aria-label="Account menu">
+              <button onClick={() => setMenu((m) => !m)} className="grid place-items-center size-10 rounded-full ring-2 ring-transparent hover:ring-fg/20 transition" aria-label="Account menu">
                 <Avatar name={user.displayName || user.username} src={user.avatar} className="size-8 text-xs" />
               </button>
               <Menu open={menu} onClose={() => setMenu(false)}>
@@ -109,9 +108,10 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {/* Phone tab bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bg/95 backdrop-blur-xl border-t border-line pb-safe">
-        <div className="grid grid-cols-5 h-[4.25rem]">
+      {/* Phone tab bar: a floating glass capsule */}
+      <nav className="md:hidden fixed inset-x-3 z-40" style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <div className="absolute inset-0 rounded-[28px] glass-bar" aria-hidden />
+        <div className="relative grid grid-cols-5 h-16 px-1.5">
           <Tab to="/" icon={<Home />} label="Home" end />
           {(libs.data || []).slice(0, 2).map((l) => (
             <Tab key={l.id} to={`/library/${l.id}`} icon={l.type === 'tv' ? <Tv /> : <Clapperboard />} label={l.name} />
@@ -127,13 +127,9 @@ export default function Layout() {
 
 function Tab({ to, icon, label, end }: { to: string; icon: React.ReactElement; label: string; end?: boolean }) {
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => `group flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition ${isActive ? 'text-white' : 'text-white/45'}`}>
-      {({ isActive }) => (
-        <>
-          <span className={`grid place-items-center h-7 w-14 rounded-full transition [&>svg]:size-[21px] ${isActive ? 'bg-white/[.12]' : ''}`}>{icon}</span>
-          <span className="truncate max-w-[76px]">{label}</span>
-        </>
-      )}
+    <NavLink to={to} end={end} className={({ isActive }) => `relative group flex flex-col items-center justify-center gap-0.5 my-1.5 rounded-[22px] text-[10.5px] font-medium transition duration-300 active:scale-95 ${isActive ? 'text-accent bg-fg/[.08] shadow-[inset_0_1px_0_var(--glass-rim)]' : 'text-fg/55'}`}>
+      <span className="grid place-items-center h-6 [&>svg]:size-[21px]">{icon}</span>
+      <span className="truncate max-w-[68px]">{label}</span>
     </NavLink>
   )
 }

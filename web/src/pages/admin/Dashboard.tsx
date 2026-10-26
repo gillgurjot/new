@@ -30,16 +30,16 @@ export default function Dashboard() {
         {!active.length && <p className="text-sm text-muted">Nobody is watching right now.</p>}
         <div className="space-y-3">
           {active.map((x) => {
-            const tone = x.method === 'transcode' ? 'text-amber-300 bg-amber-400/10' : x.method === 'remux' ? 'text-sky-300 bg-sky-400/10' : 'text-emerald-300 bg-emerald-400/10'
+            const tone = x.method === 'transcode' ? 'text-amber-600 dark:text-amber-300 bg-amber-400/15' : x.method === 'remux' ? 'text-sky-600 dark:text-sky-300 bg-sky-400/15' : 'text-emerald-600 dark:text-emerald-300 bg-emerald-400/15'
             return (
-              <div key={x.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-white/5">
+              <div key={x.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-2xl bg-fg/[.05]">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   {x.paused ? <Pause className="size-5 text-muted shrink-0" /> : <Play className="size-5 text-accent shrink-0" />}
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{x.title}</div>
                     <div className="text-xs text-muted truncate">{x.username} · {x.device}</div>
-                    <div className="mt-1.5 h-1 rounded bg-white/10 overflow-hidden w-48 max-w-full">
-                      <div className="h-full bg-white" style={{ width: `${x.duration ? (x.position / x.duration) * 100 : 0}%` }} />
+                    <div className="mt-1.5 h-1 rounded bg-fg/10 overflow-hidden w-48 max-w-full">
+                      <div className="h-full bg-fg" style={{ width: `${x.duration ? (x.position / x.duration) * 100 : 0}%` }} />
                     </div>
                   </div>
                 </div>

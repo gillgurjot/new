@@ -39,8 +39,8 @@ func (s *Server) adminJellyfin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminJellyfinSync(w http.ResponseWriter, r *http.Request) {
-	if !s.Jobs.Jellyfin.Enabled() {
-		writeErr(w, 400, "Jellyfin isn't set up: add JELLYFIN_URL and JELLYFIN_API_KEY")
+	if !s.Jobs.Jellyfin().Enabled() {
+		writeErr(w, 400, "Jellyfin isn't connected yet")
 		return
 	}
 	s.Jobs.SyncJellyfin()

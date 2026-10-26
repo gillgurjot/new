@@ -42,9 +42,9 @@ export function Sheet({ open, onClose, title, children, wide = false }: { open: 
   if (!open) return null
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" role="dialog" aria-modal>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm fade-in" onClick={onClose} />
-      <div className={`relative w-full ${wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'} max-h-[92dvh] flex flex-col bg-surface border border-line rounded-t-3xl sm:rounded-3xl shadow-2xl sheet-in pb-safe`}>
-        <div className="sm:hidden mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/20" />
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-[6px] fade-in" onClick={onClose} />
+      <div className={`relative w-full ${wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'} max-h-[92dvh] flex flex-col glass-strong rounded-t-[32px] sm:rounded-[32px] sheet-in pb-safe overflow-hidden`}>
+        <div className="sm:hidden mx-auto mt-2.5 h-1 w-10 rounded-full bg-fg/20" />
         {title && (
           <div className="flex items-center gap-3 px-5 pt-4 pb-3">
             <h3 className="text-lg font-semibold tracking-tight min-w-0 truncate">{title}</h3>
@@ -65,7 +65,7 @@ export function Menu({ open, onClose, children, align = 'right', className = '' 
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className={`absolute z-50 mt-2 min-w-56 rounded-2xl bg-surface-2/95 backdrop-blur-xl border border-line p-1.5 shadow-2xl shadow-black/50 fade-in ${align === 'right' ? 'right-0' : 'left-0'} ${className}`}>
+      <div className={`absolute z-50 mt-2 min-w-56 rounded-3xl glass-strong p-1.5 pop-in ${align === 'right' ? 'right-0' : 'left-0'} ${className}`}>
         {children}
       </div>
     </>
@@ -73,7 +73,7 @@ export function Menu({ open, onClose, children, align = 'right', className = '' 
 }
 
 export function MenuItem({ icon, children, onClick, href, download, danger }: { icon?: React.ReactNode; children: React.ReactNode; onClick?: () => void; href?: string; download?: boolean; danger?: boolean }) {
-  const cls = `w-full flex items-center gap-3 px-3 h-10 rounded-xl text-sm text-left transition ${danger ? 'text-red-300 hover:bg-red-500/10' : 'text-white/90 hover:bg-white/[.08]'}`
+  const cls = `w-full flex items-center gap-3 px-3 h-10 rounded-2xl text-sm text-left transition ${danger ? 'text-red-500 hover:bg-red-500/10' : 'text-fg/90 hover:bg-fg/[.08]'}`
   if (href) {
     return <a href={href} download={download} onClick={onClick} className={cls}>{icon}{children}</a>
   }
@@ -107,10 +107,10 @@ export function Toaster() {
     () => toasts,
   )
   return createPortal(
-    <div className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-8 z-[80] flex flex-col items-center gap-2 px-4 pointer-events-none">
+    <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-8 z-[80] flex flex-col items-center gap-2 px-4 pointer-events-none">
       {list.map((t) => (
-        <div key={t.id} className="pointer-events-auto flex items-center gap-2.5 max-w-md rounded-2xl bg-surface-3/95 backdrop-blur-xl border border-line px-4 py-3 text-sm shadow-2xl shadow-black/50 fade-in">
-          {t.tone === 'ok' ? <CheckCircle2 className="size-4 text-emerald-300 shrink-0" /> : t.tone === 'error' ? <TriangleAlert className="size-4 text-red-300 shrink-0" /> : <Info className="size-4 text-accent shrink-0" />}
+        <div key={t.id} className="pointer-events-auto flex items-center gap-2.5 max-w-md rounded-full glass-strong px-4 py-3 text-sm sheet-in">
+          {t.tone === 'ok' ? <CheckCircle2 className="size-4 text-emerald-500 shrink-0" /> : t.tone === 'error' ? <TriangleAlert className="size-4 text-red-500 shrink-0" /> : <Info className="size-4 text-accent shrink-0" />}
           <span>{t.text}</span>
         </div>
       ))}
@@ -124,7 +124,7 @@ export function Toaster() {
 export function EmptyState({ icon, title, children }: { icon: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center text-center py-20 px-6 fade-in">
-      <div className="size-16 rounded-2xl bg-white/[.06] grid place-items-center text-white/50 mb-5">{icon}</div>
+      <div className="size-16 rounded-[22px] glass grid place-items-center text-fg/50 mb-5">{icon}</div>
       <h2 className="text-lg font-semibold mb-1.5">{title}</h2>
       {children && <div className="text-sm text-muted max-w-sm">{children}</div>}
     </div>

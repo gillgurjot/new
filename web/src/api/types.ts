@@ -327,3 +327,29 @@ export interface RequestsConfig {
   canRequest: boolean
   seerrUrl: string
 }
+
+export interface JellyfinStatus {
+  enabled: boolean
+  running: boolean
+  lastSync: number // unix seconds
+  error?: string
+  linked: number
+  users: { lumen: string; jellyfin: string }[]
+  pulled: number
+  pushed: number
+  segments: number
+}
+
+/** A server connected from the admin page. API keys are never sent back, only hasKey. */
+export interface Integration {
+  url: string
+  publicUrl?: string
+  hasKey: boolean
+  enabled: boolean
+  source: '' | 'env' | 'saved' | 'off'
+}
+
+export interface Integrations {
+  jellyfin: Integration
+  seerr: Integration
+}

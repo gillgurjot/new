@@ -16,7 +16,7 @@ export default function Home() {
   if (isLoading || !data) {
     return (
       <div>
-        <div className="skeleton h-[min(78svh,680px)] md:h-[min(82vh,780px)]" />
+        <div className="skeleton h-[min(80svh,700px)] md:h-[min(84vh,800px)] [mask-image:linear-gradient(to_bottom,black_55%,transparent)]" />
         <div className="flex gap-3 px-4 md:px-10 mt-8 overflow-hidden">
           {Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-[30vw] sm:w-[150px] lg:w-[170px] shrink-0"><CardSkeleton /></div>)}
         </div>
@@ -28,7 +28,7 @@ export default function Home() {
   return (
     <div className="pb-14">
       {data.featured.length ? <Hero items={data.featured} /> : <div className="h-20" />}
-      <div className="space-y-9 md:space-y-12 mt-2 md:-mt-6 relative">
+      <div className="space-y-9 md:space-y-12 mt-4 relative">
         {empty && (
           <EmptyState icon={<FolderPlus className="size-8" />} title="Welcome to Lumen">
             {user.isAdmin ? (

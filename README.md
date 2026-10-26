@@ -17,6 +17,8 @@ One Go binary with the web app built in, SQLite for storage, ffmpeg for streamin
 - **Downloads**: save the original file (untouched, resumable) to watch offline in any player. Can be turned off per user.
 - **Skip credits**: end credits are found from chapters or by analysing the picture in the background.
 - **Requests**: search any movie or show and request it through Seerr, which hands it to Radarr/Sonarr. Shows what's already in the library, requested or downloading.
+- **Jellyfin sync**: watch history, resume points and favourites stay the same in Lumen and Jellyfin, and Intro Skipper's markers are reused. Connect Jellyfin and Seerr from Server admin → Integrations (or with the environment variables below).
+- **Liquid glass look**: frosted, floating navigation and panels, in light, dark or following the device.
 - **Installable PWA** for phones and desktops.
 - **Home screen**: continue watching, next up, recently added, featured banner. Search (titles, episodes, cast), favorites, watched state, filters and sorting.
 - **Admin**: libraries with a folder picker, scan progress, metadata refresh and "fix match", users (disable, bitrate limit, library access), and a live dashboard of streams showing why each one is transcoding.
@@ -106,6 +108,11 @@ All settings are environment variables; see [`.env.example`](.env.example).
 | `SEERR_URL` | | Seerr/Overseerr/Jellyseerr address, e.g. `http://seerr:5055`. Turns on requests |
 | `SEERR_API_KEY` | | Seerr API key (Settings → General) |
 | `SEERR_PUBLIC_URL` | | Seerr's public address, for "Open in Seerr" links |
+| `JELLYFIN_URL` | | Jellyfin address, e.g. `http://jellyfin:8096`. Turns on the watch-history sync |
+| `JELLYFIN_API_KEY` | | Jellyfin API key (Dashboard → API Keys) |
+| `JELLYFIN_SYNC_INTERVAL` | `5m` | How often to sync with Jellyfin |
+
+Seerr and Jellyfin can instead be connected from Server admin → Integrations; values saved there take precedence over the environment.
 | `LUMEN_CONFIG_DIR` / `LUMEN_TRANSCODE_DIR` | `/config` / `/transcode` | Database, images and cache / transcode scratch space |
 
 ## Development
