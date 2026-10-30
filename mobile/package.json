@@ -1,6 +1,6 @@
 {
   "name": "lumen-mobile",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "main": "expo-router/entry",
   "dependencies": {
     "@kesha-antonov/react-native-background-downloader": "^4.6.3",
