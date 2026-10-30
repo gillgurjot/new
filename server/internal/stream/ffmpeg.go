@@ -72,16 +72,18 @@ func BuildArgs(m *store.MediaFile, d Decision, pipe Pipeline, caps hwaccel.Caps,
 	a = append(a, "-fflags", "+genpts", "-i", m.Path)
 
 	// Video
-	vmap := "0:v:0"
+	vmap := "0:V:0" // capital V skips attached cover art
 	if pipe == PipeCopy {
 		a = append(a, "-map", vmap, "-c:v", "copy")
 		if m.VideoCodec == "hevc" {
-			a = append(a, "-tag:v", "hvc1")
+			// Some WEB-DLs keep VPS/SPS/PPS in-band only (near-empty hvcC). Tagging those hvc1 as-is
+			// gives unplayable segments; going through Annex B lets the muxer rebuild a full hvcC.
+			a = append(a, "-bsf:v", "hevc_mp4toannexb", "-tag:v", "hvc1")
 		}
 	} else {
 		filter := videoFilter(d, pipe, caps)
 		if d.Burn != nil {
-			fc := fmt.Sprintf("[0:v:0][0:%d]overlay=eof_action=pass:repeatlast=0[sub];[sub]%s[vout]", d.Burn.Index, filter)
+			fc := fmt.Sprintf("[0:V:0][0:%d]overlay=eof_action=pass:repeatlast=0[sub];[sub]%s[vout]", d.Burn.Index, filter)
 			a = append(a, "-filter_complex", fc, "-map", "[vout]")
 		} else {
 			a = append(a, "-map", vmap, "-vf", filter)

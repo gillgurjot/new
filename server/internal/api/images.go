@@ -50,6 +50,28 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 
 var tmdbPath = regexp.MustCompile(`^/[A-Za-z0-9_-]+\.(jpg|png)$`)
 
+var tmdbSizes = map[string]bool{"w185": true, "w342": true, "w500": true, "w780": true, "w1280": true}
+
+// tmdbImage proxies and caches TMDB posters/backdrops for titles that aren't in the library yet.
+func (s *Server) tmdbImage(w http.ResponseWriter, r *http.Request) {
+	p, size := r.URL.Query().Get("p"), r.URL.Query().Get("s")
+	if !tmdbPath.MatchString(p) {
+		http.NotFound(w, r)
+		return
+	}
+	if !tmdbSizes[size] {
+		size = "w342"
+	}
+	h := sha1.Sum([]byte(size + p))
+	file, err := s.Images.RemoteFile(r.Context(), "t_"+hex.EncodeToString(h[:8])+".jpg", metadata.ImageBase+size+p)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "private, max-age=2592000, immutable")
+	http.ServeFile(w, r, file)
+}
+
 // personImage proxies and caches TMDB cast photos so clients never call TMDB directly.
 func (s *Server) personImage(w http.ResponseWriter, r *http.Request) {
 	p := r.URL.Query().Get("p")

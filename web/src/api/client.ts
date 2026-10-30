@@ -13,14 +13,26 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     headers['Content-Type'] = 'application/json'
     body = JSON.stringify(init.json)
   }
-  const res = await fetch(path, { ...init, headers, body, credentials: 'same-origin' })
+  let res: Response
+  try {
+    res = await fetch(path, { ...init, headers, body, credentials: 'same-origin' })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    throw new ApiError(0, 'Can’t reach Lumen. Check your connection.')
+  }
   if (res.status === 401 && !location.pathname.startsWith('/login')) {
     location.href = '/login?redirect=' + encodeURIComponent(location.pathname + location.search)
     throw new ApiError(401, 'not signed in')
   }
   const text = await res.text()
-  const data = text ? JSON.parse(text) : null
-  if (!res.ok) throw new ApiError(res.status, data?.error || res.statusText)
+  let data: { error?: string } | null = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    // Not JSON: a proxy's error page while the server restarts, say.
+    if (res.ok) throw new ApiError(res.status, 'The server sent something unexpected. Try again.')
+  }
+  if (!res.ok) throw new ApiError(res.status, data?.error || `Server error (${res.status})`)
   return data as T
 }
 
@@ -54,3 +66,10 @@ export function posterUrl(item: Item, width: number): string | undefined {
 export function personImage(path?: string) {
   return path ? `/api/person-image?p=${encodeURIComponent(path)}` : undefined
 }
+
+/** TMDB artwork for titles that aren't in the library, proxied through Lumen. */
+export function tmdbImage(path: string | undefined, size: 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' = 'w342') {
+  return path ? `/api/tmdb-image?p=${encodeURIComponent(path)}&s=${size}` : undefined
+}
+
+export const downloadUrl = (itemId: number) => `/api/items/${itemId}/download`

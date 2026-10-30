@@ -1,11 +1,15 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,6 +37,7 @@ func setup(t *testing.T, userGroup string) (*mockoidc.MockOIDC, *httptest.Server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/login", func(w http.ResponseWriter, r *http.Request) { a.Login(w, r) })
 	mux.HandleFunc("/api/auth/callback", func(w http.ResponseWriter, r *http.Request) { a.Callback(w, r) })
+	mux.HandleFunc("/api/auth/app-token", func(w http.ResponseWriter, r *http.Request) { a.AppToken(w, r) })
 	mux.HandleFunc("/api/me", func(w http.ResponseWriter, r *http.Request) {
 		if u := a.SessionUser(r); u != nil {
 			io.WriteString(w, u.Username)
@@ -121,5 +126,72 @@ func TestSafeRedirect(t *testing.T) {
 		if got := safeRedirect(in); got != want {
 			t.Errorf("%q → %q", in, got)
 		}
+	}
+}
+
+func TestAppLogin(t *testing.T) {
+	m, srv, _ := setup(t, "")
+	m.QueueUser(&mockoidc.MockUser{Subject: "u-9", Email: "phone@example.com", PreferredUsername: "phone"})
+	verifier := "a-long-random-verifier-string-made-by-the-app-123456"
+	sum := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
+
+	jar, _ := cookiejar.New(nil)
+	var landed *url.URL
+	c := &http.Client{Jar: jar, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if req.URL.Scheme == "lumen" {
+			landed = req.URL
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}}
+	resp, err := c.Get(srv.URL + "/api/auth/login?app=" + challenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if landed == nil || landed.Query().Get("code") == "" {
+		t.Fatalf("expected a lumen://auth?code= redirect, got %v", landed)
+	}
+	u, _ := url.Parse(srv.URL)
+	for _, ck := range jar.Cookies(u) {
+		if ck.Name == SessionCookie {
+			t.Fatal("app sign-in should not set a browser session cookie")
+		}
+	}
+	code := landed.Query().Get("code")
+
+	exchange := func(code, verifier string) (int, string) {
+		resp, err := http.Post(srv.URL+"/api/auth/app-token", "application/json", strings.NewReader(`{"code":"`+code+`","verifier":"`+verifier+`"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out struct{ Token string }
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		return resp.StatusCode, out.Token
+	}
+	if st, _ := exchange(code, "wrong"); st != 400 {
+		t.Fatalf("wrong verifier accepted: %d", st)
+	}
+	if st, _ := exchange(code, verifier); st != 400 {
+		t.Fatal("code should be single use, even after a failed try")
+	}
+
+	// Fresh sign-in, correct verifier this time.
+	m.QueueUser(&mockoidc.MockUser{Subject: "u-9", Email: "phone@example.com", PreferredUsername: "phone"})
+	landed = nil
+	resp, _ = c.Get(srv.URL + "/api/auth/login?app=" + challenge)
+	resp.Body.Close()
+	st, token := exchange(landed.Query().Get("code"), verifier)
+	if st != 200 || token == "" {
+		t.Fatalf("exchange failed: %d", st)
+	}
+	req, _ := http.NewRequest("GET", srv.URL+"/api/me", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, _ = http.DefaultClient.Do(req)
+	b, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 || string(b) != "phone" {
+		t.Fatalf("bearer token: %d %q", resp.StatusCode, b)
 	}
 }

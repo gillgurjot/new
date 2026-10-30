@@ -6,6 +6,7 @@ import type { HomeData } from '../api/types'
 import Hero from '../components/Hero'
 import Row from '../components/Row'
 import { CardSkeleton, PosterCard, WideCard } from '../components/Cards'
+import { EmptyState } from '../components/ui'
 import { useUser } from '../lib/user'
 
 export default function Home() {
@@ -14,31 +15,31 @@ export default function Home() {
 
   if (isLoading || !data) {
     return (
-      <div className="pt-24 space-y-10">
-        <div className="skeleton h-[50vh] mx-4 md:mx-10 rounded-3xl" />
-        <div className="flex gap-4 px-4 md:px-10">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="w-40 shrink-0"><CardSkeleton /></div>)}</div>
+      <div>
+        <div className="skeleton h-[min(80svh,700px)] md:h-[min(84vh,800px)] [mask-image:linear-gradient(to_bottom,black_55%,transparent)]" />
+        <div className="flex gap-3 px-4 md:px-10 mt-8 overflow-hidden">
+          {Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-[30vw] sm:w-[150px] lg:w-[170px] shrink-0"><CardSkeleton /></div>)}
+        </div>
       </div>
     )
   }
 
   const empty = !data.latest.length
   return (
-    <div className="pb-12">
-      {data.featured.length ? <Hero items={data.featured} /> : <div className="h-24" />}
-      <div className={`space-y-10 relative z-10 ${data.featured.length ? '-mt-16 md:-mt-24' : ''}`}>
+    <div className="pb-14">
+      {data.featured.length ? <Hero items={data.featured} /> : <div className="h-20" />}
+      <div className="space-y-9 md:space-y-12 mt-4 relative">
         {empty && (
-          <div className="mx-4 md:mx-10 card p-10 text-center fade-in">
-            <FolderPlus className="size-12 mx-auto text-violet-300 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Welcome to Lumen</h2>
+          <EmptyState icon={<FolderPlus className="size-8" />} title="Welcome to Lumen">
             {user.isAdmin ? (
               <>
-                <p className="text-muted mb-6">Add a library folder with your movies or shows to get started.</p>
+                <p className="mb-6">Add a folder with your movies or shows to get started.</p>
                 <Link to="/admin/libraries" className="btn-accent">Add a library</Link>
               </>
             ) : (
-              <p className="text-muted">Nothing here yet. Ask the server admin to add a library or give you access.</p>
+              <p>Nothing here yet. Ask the server admin to add a library or give you access.</p>
             )}
-          </div>
+          </EmptyState>
         )}
         {data.continueWatching.length > 0 && (
           <Row title="Continue watching" wide>
@@ -50,8 +51,13 @@ export default function Home() {
             {data.nextUp.map((it) => <WideCard key={it.id} item={it} play />)}
           </Row>
         )}
+        {data.myList?.length > 0 && (
+          <Row title="My list" to="/favorites">
+            {data.myList.map((it) => <PosterCard key={it.id} item={it} />)}
+          </Row>
+        )}
         {data.latest.map((r) => (
-          <Row key={r.library.id} title={`Recently added in ${r.library.name}`} to={`/library/${r.library.id}?sort=added&order=desc`}>
+          <Row key={r.library.id} title={`New in ${r.library.name}`} to={`/library/${r.library.id}?sort=added&order=desc`}>
             {r.items.map((it) => <PosterCard key={it.id} item={it} />)}
           </Row>
         ))}

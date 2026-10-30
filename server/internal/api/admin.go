@@ -34,6 +34,19 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) adminJellyfin(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, s.Jobs.JellyfinStatus())
+}
+
+func (s *Server) adminJellyfinSync(w http.ResponseWriter, r *http.Request) {
+	if !s.Jobs.Jellyfin().Enabled() {
+		writeErr(w, 400, "Jellyfin isn't connected yet")
+		return
+	}
+	s.Jobs.SyncJellyfin()
+	writeJSON(w, 202, s.Jobs.JellyfinStatus())
+}
+
 func (s *Server) adminLibraries(w http.ResponseWriter, r *http.Request) {
 	libs, err := s.St.Libraries()
 	if err != nil {
@@ -109,12 +122,20 @@ func (s *Server) adminUpdateLibrary(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad request")
 		return
 	}
+	id := idParam(r, "id")
+	if _, err := s.St.Library(id); err != nil {
+		s.notFoundOr500(w, err)
+		return
+	}
+	if strings.TrimSpace(b.Name) == "" {
+		writeErr(w, 400, "name is required")
+		return
+	}
 	paths, msg := cleanPaths(b.Paths)
 	if msg != "" {
 		writeErr(w, 400, msg)
 		return
 	}
-	id := idParam(r, "id")
 	if err := s.St.UpdateLibrary(id, strings.TrimSpace(b.Name), paths); err != nil {
 		s.notFoundOr500(w, err)
 		return
@@ -191,9 +212,11 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Disabled   bool    `json:"disabled"`
-		MaxBitrate int     `json:"maxBitrate"`
-		LibraryIDs []int64 `json:"libraryIds"`
+		Disabled    bool    `json:"disabled"`
+		MaxBitrate  int     `json:"maxBitrate"`
+		LibraryIDs  []int64 `json:"libraryIds"`
+		CanDownload *bool   `json:"canDownload"`
+		CanRequest  *bool   `json:"canRequest"`
 	}
 	if err := decode(r, &b); err != nil {
 		writeErr(w, 400, "bad request")
@@ -204,7 +227,20 @@ func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "you can't disable yourself")
 		return
 	}
-	if err := s.St.UpdateUserAdmin(id, b.Disabled, max(b.MaxBitrate, 0), b.LibraryIDs); err != nil {
+	cur, err := s.St.User(id)
+	if err != nil {
+		s.notFoundOr500(w, err)
+		return
+	}
+	f := store.UserAdminFields{Disabled: b.Disabled, MaxBitrate: max(b.MaxBitrate, 0), LibraryIDs: b.LibraryIDs,
+		CanDownload: cur.CanDownload, CanRequest: cur.CanRequest}
+	if b.CanDownload != nil {
+		f.CanDownload = *b.CanDownload
+	}
+	if b.CanRequest != nil {
+		f.CanRequest = *b.CanRequest
+	}
+	if err := s.St.UpdateUserAdmin(id, f); err != nil {
 		s.notFoundOr500(w, err)
 		return
 	}

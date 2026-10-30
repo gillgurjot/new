@@ -61,3 +61,8 @@ export function timeAgo(unix: number): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`
   return `${Math.floor(s / 86400)}d ago`
 }
+
+/** "1 season", "3 seasons". */
+export function plural(n: number, word: string, many = word + 's'): string {
+  return `${n.toLocaleString()} ${n === 1 ? word : many}`
+}

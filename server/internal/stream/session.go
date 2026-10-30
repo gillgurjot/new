@@ -384,6 +384,13 @@ func (m *Manager) SegmentPath(ctx context.Context, id, name string) (string, err
 			return "", os.ErrNotExist
 		}
 		n, _ := strconv.Atoi(mm[1])
+		// ffmpeg writes segments in order, so a missing one below the newest was already
+		// cleaned up (seek far back). Fail fast so the player restarts instead of stalling.
+		if n < tc.highestSegment() {
+			if _, err := os.Stat(filepath.Join(tc.dir, name)); err != nil {
+				return "", os.ErrNotExist
+			}
+		}
 		tc.mu.Lock()
 		tc.lastSeg = n
 		tc.mu.Unlock()

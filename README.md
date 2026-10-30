@@ -5,7 +5,7 @@ One Go binary with the web app built in, SQLite for storage, ffmpeg for streamin
 
 ## Features
 
-- **Movies and TV shows**: automatic scanning, live folder watching, TMDB posters, backdrops, logos, cast, ratings and episode info. Local artwork (`poster.jpg`, `fanart.jpg`, `*-thumb.jpg`) is used when present.
+- **Movies and TV shows**: automatic scanning, live folder watching, TMDB posters, backdrops, logos, cast, ratings and episode info. Local artwork (`poster.jpg`, `fanart.jpg`, `*-thumb.jpg`) is used when present, except that a text-free TMDB backdrop is preferred over local fanart, since the title logo is drawn on top.
 - **Device-first playback**: each browser reports what it can decode (codecs, HDR, screen size, slow connections). Lumen then picks the cheapest option:
   1. **Direct play**: the original file, untouched.
   2. **Direct stream**: video copied as is, only the container (and audio, if needed) converted.
@@ -13,6 +13,12 @@ One Go binary with the web app built in, SQLite for storage, ffmpeg for streamin
 - **Hardware transcoding**: Intel/AMD VAAPI or Intel QSV, detected at startup with a test encode. Falls back to CPU automatically, and to a different pipeline if one fails for a file.
 - **Player**: resume, seek previews (trickplay thumbnails), audio and subtitle switching (SRT/ASS/VTT, embedded or external; PGS/VobSub burned in), quality selector, playback speed, chapters, skip intro, up next with autoplay, picture-in-picture, keyboard shortcuts, double-tap seek on phones, lock-screen controls.
 - **Chromecast** casting from Chrome/Edge.
+- **Watch together**: share a link and everyone's play, pause and seeking stay in sync, with chat and reactions.
+- **Downloads**: save the original file (untouched, resumable) to watch offline in any player. Can be turned off per user.
+- **Skip credits**: end credits are found from chapters or by analysing the picture in the background.
+- **Requests**: search any movie or show and request it through Seerr, which hands it to Radarr/Sonarr. Shows what's already in the library, requested or downloading.
+- **Jellyfin sync**: watch history, resume points and favourites stay the same in Lumen and Jellyfin, and Intro Skipper's markers are reused. Connect Jellyfin and Seerr from Server admin → Integrations (or with the environment variables below).
+- **Liquid glass look**: frosted, floating navigation and panels, in light, dark or following the device.
 - **Installable PWA** for phones and desktops.
 - **Home screen**: continue watching, next up, recently added, featured banner. Search (titles, episodes, cast), favorites, watched state, filters and sorting.
 - **Admin**: libraries with a folder picker, scan progress, metadata refresh and "fix match", users (disable, bitrate limit, library access), and a live dashboard of streams showing why each one is transcoding.
@@ -98,6 +104,15 @@ All settings are environment variables; see [`.env.example`](.env.example).
 | `LUMEN_MAX_TRANSCODES` | `4` | Concurrent full transcodes (direct play/stream are not limited) |
 | `LUMEN_SCAN_INTERVAL` | `6h` | Full rescan interval (folder watching handles most changes) |
 | `LUMEN_TRICKPLAY` | `true` | Generate seek-preview thumbnails in the background |
+| `LUMEN_CREDITS_DETECTION` | `true` | Find end credits in the background (skip credits, earlier up next) |
+| `SEERR_URL` | | Seerr/Overseerr/Jellyseerr address, e.g. `http://seerr:5055`. Turns on requests |
+| `SEERR_API_KEY` | | Seerr API key (Settings → General) |
+| `SEERR_PUBLIC_URL` | | Seerr's public address, for "Open in Seerr" links |
+| `JELLYFIN_URL` | | Jellyfin address, e.g. `http://jellyfin:8096`. Turns on the watch-history sync |
+| `JELLYFIN_API_KEY` | | Jellyfin API key (Dashboard → API Keys) |
+| `JELLYFIN_SYNC_INTERVAL` | `5m` | How often to sync with Jellyfin |
+
+Seerr and Jellyfin can instead be connected from Server admin → Integrations; values saved there take precedence over the environment.
 | `LUMEN_CONFIG_DIR` / `LUMEN_TRANSCODE_DIR` | `/config` / `/transcode` | Database, images and cache / transcode scratch space |
 
 ## Development

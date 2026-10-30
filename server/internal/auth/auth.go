@@ -42,6 +42,20 @@ type Auth struct {
 	oauth      *oauth2.Config
 	endSession string
 	HTTPClient *http.Client // optional, for tests
+
+	codesMu  sync.Mutex
+	appCodes map[string]appCode
+}
+
+// AppRedirect is where sign-ins started by the phone app return to.
+const AppRedirect = "lumen://auth"
+
+// appCode is a one-time code handed to the phone app after sign-in. The app trades it,
+// with the verifier it generated, for a session token (the same idea as PKCE).
+type appCode struct {
+	token     string
+	challenge string
+	exp       time.Time
 }
 
 func New(cfg *config.Config, st *store.Store, log *slog.Logger) *Auth {
@@ -99,6 +113,67 @@ type flowState struct {
 	Verifier string `json:"v"`
 	Redirect string `json:"r"`
 	Exp      int64  `json:"e"`
+	App      string `json:"a,omitempty"` // S256 challenge from the phone app
+}
+
+// appChallenge returns the app's PKCE-style challenge from ?app=, if it looks valid.
+func appChallenge(r *http.Request) string {
+	c := r.URL.Query().Get("app")
+	if len(c) != 43 {
+		return ""
+	}
+	if _, err := base64.RawURLEncoding.DecodeString(c); err != nil {
+		return ""
+	}
+	return c
+}
+
+func (a *Auth) newAppCode(token, challenge string) string {
+	a.codesMu.Lock()
+	defer a.codesMu.Unlock()
+	if a.appCodes == nil {
+		a.appCodes = map[string]appCode{}
+	}
+	now := time.Now()
+	for k, c := range a.appCodes {
+		if c.exp.Before(now) {
+			delete(a.appCodes, k)
+		}
+	}
+	code := randString(24)
+	a.appCodes[code] = appCode{token: token, challenge: challenge, exp: now.Add(2 * time.Minute)}
+	return code
+}
+
+// AppToken trades a one-time code and its verifier for a session token.
+func (a *Auth) AppToken(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Code     string `json:"code"`
+		Verifier string `json:"verifier"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&b); err != nil {
+		http.Error(w, `{"error":"bad request"}`, 400)
+		return
+	}
+	a.codesMu.Lock()
+	c, ok := a.appCodes[b.Code]
+	delete(a.appCodes, b.Code) // single use, even on a wrong verifier
+	a.codesMu.Unlock()
+	sum := sha256.Sum256([]byte(b.Verifier))
+	if !ok || c.exp.Before(time.Now()) || !hmac.Equal([]byte(base64.RawURLEncoding.EncodeToString(sum[:])), []byte(c.challenge)) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400)
+		_, _ = w.Write([]byte(`{"error":"Sign-in code expired, please try again"}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(map[string]string{"token": c.token})
+}
+
+// appFail sends a failed app sign-in back to the app with a message.
+func appFail(w http.ResponseWriter, r *http.Request, msg string) {
+	http.Redirect(w, r, AppRedirect+"?error="+url.QueryEscape(msg), http.StatusFound)
 }
 
 func (a *Auth) sign(data []byte) string {
@@ -137,11 +212,15 @@ func safeRedirect(r string) string {
 func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 	if err := a.discover(r.Context()); err != nil {
 		a.log.Error("oidc", "err", err)
+		if appChallenge(r) != "" {
+			appFail(w, r, "Sign-in provider unreachable")
+			return
+		}
 		http.Redirect(w, r, "/login?error="+url.QueryEscape("Sign-in provider unreachable"), http.StatusFound)
 		return
 	}
 	fs := flowState{State: randString(16), Nonce: randString(16), Verifier: oauth2.GenerateVerifier(),
-		Redirect: safeRedirect(r.URL.Query().Get("redirect")), Exp: time.Now().Add(10 * time.Minute).Unix()}
+		Redirect: safeRedirect(r.URL.Query().Get("redirect")), Exp: time.Now().Add(10 * time.Minute).Unix(), App: appChallenge(r)}
 	http.SetCookie(w, &http.Cookie{Name: flowCookie, Value: a.sealCookie(fs), Path: "/api/auth", HttpOnly: true,
 		Secure: a.cfg.SecureCookies, SameSite: http.SameSiteLaxMode, MaxAge: 600})
 	u := a.oauth.AuthCodeURL(fs.State, oidc.Nonce(fs.Nonce), oauth2.S256ChallengeOption(fs.Verifier))
@@ -175,8 +254,17 @@ func groupsFrom(raw map[string]any, claim string) []string {
 
 // Callback completes the flow, upserts the user and sets the session cookie.
 func (a *Auth) Callback(w http.ResponseWriter, r *http.Request) {
+	var fs flowState
+	c, cerr := r.Cookie(flowCookie)
+	if cerr == nil && a.openCookie(c.Value, &fs) != nil {
+		fs = flowState{}
+	}
 	fail := func(msg string, err error) {
 		a.log.Warn("login failed", "reason", msg, "err", err)
+		if fs.App != "" {
+			appFail(w, r, msg)
+			return
+		}
 		http.Redirect(w, r, "/login?error="+url.QueryEscape(msg), http.StatusFound)
 	}
 	if e := r.URL.Query().Get("error"); e != "" {
@@ -187,10 +275,8 @@ func (a *Auth) Callback(w http.ResponseWriter, r *http.Request) {
 		fail("Sign-in provider unreachable", err)
 		return
 	}
-	c, err := r.Cookie(flowCookie)
-	var fs flowState
-	if err != nil || a.openCookie(c.Value, &fs) != nil || fs.Exp < time.Now().Unix() {
-		fail("Sign-in session expired, please try again", err)
+	if cerr != nil || fs.State == "" || fs.Exp < time.Now().Unix() {
+		fail("Sign-in session expired, please try again", cerr)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: flowCookie, Value: "", Path: "/api/auth", MaxAge: -1})
@@ -250,16 +336,22 @@ func (a *Auth) Callback(w http.ResponseWriter, r *http.Request) {
 		fail("Your account is not allowed to use this server", fmt.Errorf("user %s not in group %s", cl.Subject, a.cfg.OIDCUserGroup))
 		return
 	}
-	u, err := a.completeLogin(w, r, cl, slices.Contains(groups, a.cfg.OIDCAdminGroup), rawID)
+	u, token, err := a.completeLogin(w, r, cl, slices.Contains(groups, a.cfg.OIDCAdminGroup), rawID, fs.App != "")
 	if err != nil {
 		fail(err.Error(), err)
 		return
 	}
-	a.log.Info("user signed in", "user", u.Username, "admin", u.IsAdmin)
+	a.log.Info("user signed in", "user", u.Username, "admin", u.IsAdmin, "app", fs.App != "")
+	if fs.App != "" {
+		http.Redirect(w, r, AppRedirect+"?code="+a.newAppCode(token, fs.App), http.StatusFound)
+		return
+	}
 	http.Redirect(w, r, fs.Redirect, http.StatusFound)
 }
 
-func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, cl claims, admin bool, idToken string) (*store.User, error) {
+// completeLogin saves the user and creates a session. Browser sign-ins get a cookie;
+// app sign-ins (app=true) get the token back instead.
+func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, cl claims, admin bool, idToken string, app bool) (*store.User, string, error) {
 	username := cl.Username
 	if username == "" {
 		username, _, _ = strings.Cut(cl.Email, "@")
@@ -276,18 +368,24 @@ func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, cl claims, 
 	}
 	u, err := a.st.UpsertOIDCUser(cl.Subject, username, display, cl.Email, cl.Picture, admin)
 	if err != nil {
-		return nil, errors.New("Could not save account")
+		return nil, "", errors.New("Could not save account")
 	}
 	if u.Disabled {
-		return nil, errors.New("Your account is disabled")
+		return nil, "", errors.New("Your account is disabled")
 	}
 	token := randString(32)
 	if err := a.st.CreateSession(token, u.ID, a.cfg.SessionTTL, r.UserAgent(), idToken); err != nil {
-		return nil, errors.New("Could not create session")
+		return nil, "", errors.New("Could not create session")
 	}
-	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: a.cfg.SecureCookies,
-		SameSite: http.SameSiteLaxMode, MaxAge: int(a.cfg.SessionTTL.Seconds())})
-	return u, nil
+	if !app {
+		http.SetCookie(w, a.sessionCookie(token))
+	}
+	return u, token, nil
+}
+
+func (a *Auth) sessionCookie(token string) *http.Cookie {
+	return &http.Cookie{Name: SessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: a.cfg.SecureCookies,
+		SameSite: http.SameSiteLaxMode, MaxAge: int(a.cfg.SessionTTL.Seconds())}
 }
 
 // DevLogin signs in without an identity provider. Only enabled by LUMEN_DEV_INSECURE_LOGIN for testing.
@@ -300,9 +398,14 @@ func (a *Auth) DevLogin(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "dev"
 	}
-	_, err := a.completeLogin(w, r, claims{Subject: "dev:" + name, Username: name, Name: name}, r.URL.Query().Get("admin") == "1", "")
+	app := appChallenge(r)
+	_, token, err := a.completeLogin(w, r, claims{Subject: "dev:" + name, Username: name, Name: name}, r.URL.Query().Get("admin") == "1", "", app != "")
 	if err != nil {
 		http.Error(w, err.Error(), 403)
+		return
+	}
+	if app != "" {
+		http.Redirect(w, r, AppRedirect+"?code="+a.newAppCode(token, app), http.StatusFound)
 		return
 	}
 	http.Redirect(w, r, safeRedirect(r.URL.Query().Get("redirect")), http.StatusFound)
@@ -311,8 +414,8 @@ func (a *Auth) DevLogin(w http.ResponseWriter, r *http.Request) {
 // Logout ends the session and returns the provider logout URL, if any.
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) string {
 	idt := ""
-	if c, err := r.Cookie(SessionCookie); err == nil {
-		idt = a.st.DeleteSession(c.Value)
+	if t := sessionToken(r); t != "" {
+		idt = a.st.DeleteSession(t)
 	}
 	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.cfg.SecureCookies})
 	_ = a.discover(r.Context())
@@ -329,17 +432,50 @@ func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) string {
 	return end + "?" + q.Encode()
 }
 
-// SessionUser returns the signed-in user for a request (cookie only).
-func (a *Auth) SessionUser(r *http.Request) *store.User {
-	c, err := r.Cookie(SessionCookie)
-	if err != nil || c.Value == "" {
-		return nil
+// sessionToken reads the session from the app's bearer header or the browser cookie.
+func sessionToken(r *http.Request) string {
+	if t, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && t != "" {
+		return t
 	}
-	u, err := a.st.SessionUser(c.Value)
-	if err != nil || u.Disabled {
-		return nil
+	if c, err := r.Cookie(SessionCookie); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// FromApp reports whether a request authenticates with the app's bearer token.
+func FromApp(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+}
+
+// SessionUser returns the signed-in user for a request (cookie or bearer token).
+func (a *Auth) SessionUser(r *http.Request) *store.User {
+	u, _ := a.session(r)
+	return u
+}
+
+// Authenticate is SessionUser for request handlers: when the session's expiry moves on, the
+// browser's cookie is renewed too, so someone using Lumen regularly stays signed in.
+func (a *Auth) Authenticate(w http.ResponseWriter, r *http.Request) *store.User {
+	u, slid := a.session(r)
+	if u != nil && slid && !FromApp(r) {
+		if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {
+			http.SetCookie(w, a.sessionCookie(c.Value))
+		}
 	}
 	return u
+}
+
+func (a *Auth) session(r *http.Request) (*store.User, bool) {
+	t := sessionToken(r)
+	if t == "" {
+		return nil, false
+	}
+	u, slid, err := a.st.SessionUser(t, a.cfg.SessionTTL)
+	if err != nil || u.Disabled {
+		return nil, false
+	}
+	return u, slid
 }
 
 // MediaToken grants read access to media endpoints for cookie-less clients (Chromecast).

@@ -1,36 +1,123 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
 
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Liquid glass: frosted, lightly tinted panels with a bright top rim, floating over a soft
+   coloured backdrop. Colours are CSS variables so a subtree can switch theme with
+   data-theme="dark" (the player and the home banner always do). */
+
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
-  --color-bg: #0b0b12;
-  --color-surface: #14141f;
-  --color-surface-2: #1c1c2a;
-  --color-line: #2a2a3c;
-  --color-muted: #9a9ab0;
-  --color-accent: #a78bfa;
-  --color-accent-2: #f472b6;
+  --color-bg: #07080c;
+  --color-surface: #12131a;
+  --color-surface-2: #1a1b23;
+  --color-surface-3: #24252f;
+  --color-line: rgb(255 255 255 / 0.09);
+  --color-fg: #f5f5f7;
+  --color-muted: #9293a0;
+  --color-accent: #a596ff;
+  --color-accent-strong: #7c66ff;
+  --color-accent-2: #f0a3d8;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-liquid: cubic-bezier(0.34, 1.36, 0.64, 1);
 }
 
-:root {
+:root,
+[data-theme='dark'] {
   color-scheme: dark;
+  --color-bg: #07080c;
+  --color-surface: #12131a;
+  --color-surface-2: #1a1b23;
+  --color-surface-3: #24252f;
+  --color-line: rgb(255 255 255 / 0.09);
+  --color-fg: #f5f5f7;
+  --color-muted: #9293a0;
+  --color-accent: #a596ff;
+  --color-accent-strong: #7c66ff;
+  --glass-tint: rgb(255 255 255 / 0.06);
+  --glass-tint-strong: rgb(30 31 41 / 0.72);
+  --glass-tint-bar: rgb(22 23 31 / 0.62);
+  --glass-sheen: rgb(255 255 255 / 0.1);
+  --glass-rim: rgb(255 255 255 / 0.22);
+  --glass-edge: rgb(255 255 255 / 0.07);
+  --glass-drop: 0 12px 40px -12px rgb(0 0 0 / 0.65);
+  --skeleton-a: rgb(255 255 255 / 0.04);
+  --skeleton-b: rgb(255 255 255 / 0.09);
+  --ambient-1: rgb(124 102 255 / 0.22);
+  --ambient-2: rgb(240 163 216 / 0.1);
+  --ambient-3: rgb(56 189 248 / 0.09);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #eef0f6;
+  --color-surface: #ffffff;
+  --color-surface-2: #e4e6ee;
+  --color-surface-3: #d9dce6;
+  --color-line: rgb(15 18 40 / 0.09);
+  --color-fg: #0e0f15;
+  --color-muted: #676a7a;
+  --color-accent: #5d47e8;
+  --color-accent-strong: #6a54f2;
+  --glass-tint: rgb(255 255 255 / 0.5);
+  --glass-tint-strong: rgb(250 251 255 / 0.78);
+  --glass-tint-bar: rgb(248 249 253 / 0.72);
+  --glass-sheen: rgb(255 255 255 / 0.55);
+  --glass-rim: rgb(255 255 255 / 0.95);
+  --glass-edge: rgb(15 18 40 / 0.07);
+  --glass-drop: 0 12px 36px -14px rgb(40 44 90 / 0.25);
+  --skeleton-a: rgb(15 18 40 / 0.05);
+  --skeleton-b: rgb(15 18 40 / 0.1);
+  --ambient-1: rgb(124 102 255 / 0.2);
+  --ambient-2: rgb(240 163 216 / 0.22);
+  --ambient-3: rgb(56 189 248 / 0.16);
+}
+
+/* A subtree forced dark (player, banner text) keeps its own text colour. */
+[data-theme] {
+  color: var(--color-fg);
+}
+
+html {
+  background: var(--color-bg);
 }
 
 html,
 body {
-  background: var(--color-bg);
-  color: #ececf4;
+  color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  font-feature-settings: 'cv11', 'ss01';
 }
 
 body {
   min-height: 100dvh;
+  transition: color 0.3s;
+}
+
+/* Soft colour behind everything, so the glass has something to bend. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 12% 8%, var(--ambient-1), transparent 70%),
+    radial-gradient(45% 40% at 92% 22%, var(--ambient-2), transparent 70%),
+    radial-gradient(60% 50% at 70% 100%, var(--ambient-3), transparent 70%);
 }
 
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .scrollbar-none {
@@ -40,33 +127,112 @@ body {
   display: none;
 }
 
-@utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 h-11 font-semibold text-sm transition active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none select-none;
+/* ---------- glass ---------- */
+@utility glass {
+  background: linear-gradient(180deg, var(--glass-sheen), transparent 60%), var(--glass-tint);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-rim),
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 -1px 1px 0 rgb(255 255 255 / 0.04),
+    var(--glass-drop);
 }
-@utility btn-primary {
-  @apply btn bg-white text-black hover:bg-white/90;
+/* Navigation bars: clear enough to see what scrolls under them, solid enough to read. */
+@utility glass-bar {
+  background: linear-gradient(180deg, var(--glass-sheen), transparent 60%), var(--glass-tint-bar);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  backdrop-filter: blur(30px) saturate(190%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-rim),
+    inset 0 0 0 1px var(--glass-edge),
+    var(--glass-drop);
 }
-@utility btn-accent {
-  @apply btn text-white bg-gradient-to-r from-violet-500 to-pink-500 hover:brightness-110;
+/* More opaque, for things that sit over busy content: menus, sheets, toasts. */
+@utility glass-strong {
+  background: linear-gradient(180deg, var(--glass-sheen), transparent 50%), var(--glass-tint-strong);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  backdrop-filter: blur(40px) saturate(190%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-rim),
+    inset 0 0 0 1px var(--glass-edge),
+    0 24px 60px -16px rgb(0 0 0 / 0.45);
 }
-@utility btn-ghost {
-  @apply btn bg-white/10 text-white hover:bg-white/20 backdrop-blur;
-}
-@utility icon-btn {
-  @apply inline-flex items-center justify-center rounded-full size-11 bg-white/10 hover:bg-white/20 backdrop-blur transition active:scale-95;
-}
-@utility input {
-  @apply w-full h-11 rounded-xl bg-surface-2 border border-line px-4 text-sm outline-none focus:border-accent transition placeholder:text-muted;
-}
-@utility card {
-  @apply rounded-2xl bg-surface border border-line;
-}
-@utility chip {
-  @apply inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-0.5 text-xs text-white/80;
+/* Dark glass that stays readable over any picture, in either theme. */
+@utility glass-dark {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.1), transparent 55%), rgb(12 13 20 / 0.42);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  backdrop-filter: blur(28px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.22),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    0 20px 50px -20px rgb(0 0 0 / 0.6);
 }
 
+/* ---------- buttons ---------- */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 h-11 font-semibold text-[15px] leading-none whitespace-nowrap transition duration-300 active:scale-[.96] disabled:opacity-40 disabled:pointer-events-none select-none;
+  transition-timing-function: var(--ease-liquid);
+}
+@utility btn-primary {
+  @apply btn bg-fg text-bg hover:bg-fg/85;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 8px 24px -10px rgb(0 0 0 / 0.5);
+}
+@utility btn-accent {
+  @apply btn text-white bg-accent-strong hover:bg-accent-strong/85;
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.22), transparent 60%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 10px 28px -10px color-mix(in srgb, var(--color-accent-strong) 70%, transparent);
+}
+@utility btn-ghost {
+  @apply btn glass text-fg hover:bg-fg/[.14];
+}
+@utility btn-danger {
+  @apply btn bg-red-500/15 text-red-600 dark:text-red-200 hover:bg-red-500/25;
+}
+@utility icon-btn {
+  @apply inline-flex items-center justify-center shrink-0 rounded-full size-11 glass text-fg hover:bg-fg/[.14] transition duration-300 active:scale-90 disabled:opacity-40 disabled:pointer-events-none;
+  transition-timing-function: var(--ease-liquid);
+}
+/* Bare round button: glass only on hover. */
+@utility icon-btn-plain {
+  @apply inline-flex items-center justify-center shrink-0 rounded-full size-11 text-fg hover:bg-fg/10 transition duration-300 active:scale-90 disabled:opacity-40 disabled:pointer-events-none;
+}
+@utility input {
+  @apply w-full h-11 rounded-2xl bg-fg/[.05] border border-line px-4 text-[15px] text-fg outline-none focus:border-accent/70 focus:bg-fg/[.08] transition placeholder:text-muted;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+@utility select {
+  @apply input appearance-none pr-10 cursor-pointer bg-no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238f8f9d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 0.85rem center;
+}
+@utility pill {
+  @apply inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-sm font-medium whitespace-nowrap transition duration-300 bg-fg/[.07] text-fg/80 hover:bg-fg/[.12] hover:text-fg active:scale-95;
+  transition-timing-function: var(--ease-liquid);
+}
+@utility pill-on {
+  @apply pill !bg-fg !text-bg;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 6px 18px -8px rgb(0 0 0 / 0.45);
+}
+@utility card {
+  @apply rounded-3xl glass;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-md border border-fg/25 px-1.5 py-px text-[11px] font-semibold tracking-wide text-fg/80 uppercase;
+}
+@utility eyebrow {
+  @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-muted;
+}
+
+/* White title logos get a soft shadow so they read on the light theme. */
+[data-theme='light'] .title-logo {
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.55)) drop-shadow(0 2px 14px rgb(0 0 0 / 0.35));
+}
+
+/* ---------- loading ---------- */
 .skeleton {
-  background: linear-gradient(100deg, #1a1a28 30%, #232336 50%, #1a1a28 70%);
+  background: linear-gradient(100deg, var(--skeleton-a) 30%, var(--skeleton-b) 50%, var(--skeleton-a) 70%);
   background-size: 300% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
@@ -76,11 +242,45 @@ body {
 }
 
 .fade-in {
-  animation: fadein 0.35s ease both;
+  animation: fadein 0.35s var(--ease-out-soft) both;
 }
 @keyframes fadein {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
+}
+/* Glass panels open with a little springy grow, like a droplet. */
+.pop-in {
+  animation: popin 0.42s var(--ease-liquid) both;
+  transform-origin: top right;
+}
+@keyframes popin {
+  from { opacity: 0; transform: scale(0.9); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.sheet-in {
+  animation: sheetin 0.45s var(--ease-liquid) both;
+}
+@keyframes sheetin {
+  from { opacity: 0; transform: translateY(40px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (min-width: 640px) {
+  .sheet-in { animation-name: popcenter; }
+}
+@keyframes popcenter {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.float-up {
+  animation: floatup 2.6s ease-out forwards;
+}
+@keyframes floatup {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  12% { opacity: 1; transform: translateY(-20px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-220px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .sheet-in, .pop-in, .float-up { animation-duration: 0.01ms; }
 }
 
 /* Off-screen grid rows skip layout/paint for fast scrolling of big libraries. */
@@ -100,6 +300,7 @@ body {
   width: 14px;
   border-radius: 9999px;
   background: white;
+  margin-top: -5px;
 }
 .range::-moz-range-thumb {
   height: 14px;
@@ -118,10 +319,10 @@ body {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.3);
 }
-.range::-webkit-slider-thumb {
-  margin-top: -5px;
-}
 
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
 }

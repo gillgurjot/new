@@ -26,11 +26,16 @@ type Runner struct {
 	FFmpeg       string
 	TrickplayDir string
 	Trickplay    bool
+	Credits      bool // look for end credits in the background
+	Intro        bool // look for intros in the background
 	ScanInterval time.Duration
 	Log          *slog.Logger
 
+	JellyfinInterval time.Duration
+
 	metaQueue chan int64
 	trickWake chan struct{}
+	jf        jfState
 }
 
 func (r *Runner) Start(ctx context.Context) {
@@ -47,6 +52,15 @@ func (r *Runner) Start(ctx context.Context) {
 	if r.Trickplay {
 		go r.trickplayLoop(ctx)
 	}
+	if r.Credits {
+		go r.creditsLoop(ctx)
+	}
+	if r.Intro {
+		go r.introLoop(ctx)
+	}
+	// Always running: Jellyfin can be connected later from the admin page.
+	r.jf.wake = make(chan struct{}, 1)
+	go r.jellyfinLoop(ctx)
 }
 
 // ScanAll scans every library in turn.

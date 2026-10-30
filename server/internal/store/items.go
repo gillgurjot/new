@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -285,11 +286,13 @@ func (s *Store) Latest(u *User, libraryID int64, limit int) ([]*Item, error) {
 		LIMIT ?3`, u.ID, libraryID, limit)
 }
 
-// Featured returns items with backdrops for the home hero carousel.
+// Featured returns items with backdrops for the home hero carousel. The pick changes once a
+// day rather than on every visit, so the banner doesn't reshuffle each time Home reloads.
 func (s *Store) Featured(u *User, limit int) ([]*Item, error) {
+	day := time.Now().Unix() / 86400
 	return s.queryItems(itemSelect+`WHERE `+libFilter(u)+` AND i.type IN ('movie','series') AND i.backdrop != ''
 		AND i.date_added > (SELECT COALESCE(MAX(date_added),0) - 86400*120 FROM items)
-		ORDER BY (i.overview != '') DESC, random() LIMIT ?2`, u.ID, limit)
+		ORDER BY (i.overview != '') DESC, ((i.id + ?3) * 2654435761) % 4294967291 LIMIT ?2`, u.ID, limit, day)
 }
 
 func (s *Store) Favorites(u *User, limit int) ([]*Item, error) {
@@ -386,4 +389,31 @@ func (s *Store) SetFavorite(userID, itemID int64, fav bool) error {
 	s.ensureUD(userID, itemID)
 	_, err := s.DB.Exec(`UPDATE user_data SET favorite=? WHERE user_id=? AND item_id=?`, fav, userID, itemID)
 	return err
+}
+
+// ItemsByTMDB maps TMDB ids to library item ids the user can see. kind is "movie" or "series".
+func (s *Store) ItemsByTMDB(u *User, kind string, ids []int) (map[int]int64, error) {
+	out := map[int]int64{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	ph := make([]string, len(ids))
+	args := []any{kind}
+	for i, id := range ids {
+		ph[i] = "?"
+		args = append(args, id)
+	}
+	rows, err := s.DB.Query(`SELECT i.tmdb_id, i.id FROM items i WHERE i.type=? AND i.tmdb_id IN (`+strings.Join(ph, ",")+`) AND `+libFilter(u), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t int
+		var id int64
+		if rows.Scan(&t, &id) == nil {
+			out[t] = id
+		}
+	}
+	return out, rows.Err()
 }

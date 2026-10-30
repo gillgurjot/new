@@ -1,9 +1,16 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0b12" />
+    <meta name="theme-color" content="#07080c" />
+    <script>
+      // Pick light or dark before the first paint (see src/lib/theme.ts).
+      try {
+        var m = localStorage.getItem('lumen.theme') || 'dark'
+        if (m === 'light' || (m === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.theme = 'light'
+      } catch (e) {}
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
