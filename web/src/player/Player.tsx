@@ -60,11 +60,16 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
   const [paused, setPaused] = useState(true)
   const [waiting, setWaiting] = useState(false)
   const [time, setTime] = useState(0) // absolute media time
+  // For handlers that shouldn't be re-registered every time `time` ticks (several times a second).
+  const timeRef = useRef(0)
+  timeRef.current = time
   const [bufferedEnd, setBufferedEnd] = useState(0)
   const [prefs, setPrefsState] = useState(loadPrefs())
   const [volume, setVolume] = useState(prefs.volume)
   const [muted, setMuted] = useState(prefs.muted)
   const [speed, setSpeed] = useState(1)
+  const speedRef = useRef(1)
+  speedRef.current = speed
   const [fullscreen, setFullscreen] = useState(false)
   const [controls, setControls] = useState(true)
   const [menu, setMenu] = useState<Menu>(null)
@@ -150,7 +155,8 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
     } else {
       v.src = p.url // native HLS (Safari / iOS)
     }
-    v.playbackRate = speed
+    // A new stream (quality or audio change, seek past what's converted) keeps the chosen speed.
+    v.playbackRate = speedRef.current
     v.play().catch(() => setPaused(true))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -241,7 +247,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
     selRef.current.sub = idx
     // Image subtitles are burned in by the server, so switching to/from them restarts the stream.
     if ((track && !track.url) || burning) {
-      start({ startTime: time, subtitleIndex: idx })
+      start({ startTime: timeRef.current, subtitleIndex: idx })
     } else {
       setSubIndex(idx)
     }
@@ -250,13 +256,13 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
   const chooseAudio = (idx: number) => {
     setMenu(null)
     selRef.current.audio = idx
-    start({ startTime: time, audioIndex: idx })
+    start({ startTime: timeRef.current, audioIndex: idx })
   }
 
   const chooseQuality = (q: string) => {
     setMenu(null)
     setPrefs({ quality: q })
-    start({ startTime: time, quality: q })
+    start({ startTime: timeRef.current, quality: q })
   }
 
   // Moving to another episode takes the whole party along.
@@ -451,12 +457,12 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
           break
         case 'ArrowLeft':
         case 'j':
-          seek(time - 10)
+          seek(timeRef.current - 10)
           showFlash('-10s')
           break
         case 'ArrowRight':
         case 'l':
-          seek(time + 10)
+          seek(timeRef.current + 10)
           showFlash('+10s')
           break
         case 'ArrowUp':
@@ -507,7 +513,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [time, seek, togglePlay, toggleFullscreen, info, subIndex, next, goNext, onExit, menu, poke, partyOpen])
+  }, [seek, togglePlay, toggleFullscreen, info, subIndex, next, goNext, onExit, menu, poke, partyOpen])
 
   // ---------- chapters / intro / up next ----------
 
@@ -601,11 +607,11 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
     const ms = navigator.mediaSession
     ms.setActionHandler('play', userPlay)
     ms.setActionHandler('pause', userPause)
-    ms.setActionHandler('seekbackward', () => seek(time - 10))
-    ms.setActionHandler('seekforward', () => seek(time + 10))
+    ms.setActionHandler('seekbackward', () => seek(timeRef.current - 10))
+    ms.setActionHandler('seekforward', () => seek(timeRef.current + 10))
     ms.setActionHandler('seekto', (d) => d.seekTime != null && seek(d.seekTime))
     ms.setActionHandler('nexttrack', next ? () => goNext(next.id) : null)
-  }, [info, seek, time, next, goNext, userPlay, userPause])
+  }, [info, seek, next, goNext, userPlay, userPause])
 
   // ---------- watch together ----------
 
@@ -789,7 +795,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
               onClick={() => {
                 endCast()
                 setCasting(false)
-                start({ startTime: time })
+                start({ startTime: timeRef.current })
               }}
             >
               Stop casting
@@ -805,7 +811,7 @@ export default function Player({ itemId, startTime, onExit, onNext, partyId, par
             <p className="text-muted text-sm mb-5">{error}</p>
             <div className="flex gap-3 justify-center">
               <button className="btn-ghost" onClick={onExit}>Back</button>
-              <button className="btn-primary" onClick={() => { retries.current = 0; start({ startTime: time }) }}>Try again</button>
+              <button className="btn-primary" onClick={() => { retries.current = 0; start({ startTime: timeRef.current }) }}>Try again</button>
             </div>
           </div>
         </div>

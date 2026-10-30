@@ -76,7 +76,14 @@ export function useDownload(itemId?: number): Download | undefined {
   return useSyncExternalStore(subscribe, () => (itemId ? all[itemId] : undefined))
 }
 
+/** How many downloads are in a state. A number, so progress ticks don't re-render the caller. */
+export function useDownloadCount(state: DownloadState): number {
+  return useSyncExternalStore(subscribe, () => list.reduce((n, d) => n + (d.state === state ? 1 : 0), 0))
+}
+
 export const getDownload = (itemId: number): Download | undefined => all[itemId]
+/** A snapshot, for code that needs the list once rather than on every change. */
+export const getDownloads = (): Download[] => list
 
 const plainPath = (uri: string) => decodeURI(uri.replace(/^file:\/\//, ''))
 const taskId = (itemId: number) => `item-${itemId}`

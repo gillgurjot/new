@@ -4,6 +4,9 @@ import { Clapperboard, Folder, FolderOpen, Pencil, Plus, RefreshCw, Sparkles, Tr
 import { ApiError, api, del, post, put } from '../../api/client'
 import type { Library, ScanStatus } from '../../api/types'
 import { timeAgo } from '../../lib/format'
+import { toast } from '../../components/ui'
+
+const failed = (e: unknown, what: string) => toast(e instanceof ApiError ? e.message : what, 'error')
 
 export default function Libraries() {
   const qc = useQueryClient()
@@ -19,16 +22,29 @@ export default function Libraries() {
     qc.invalidateQueries({ queryKey: ['home'] })
   }
   const scan = async (id: number) => {
-    await post(`/api/admin/libraries/${id}/scan`)
-    setTimeout(refresh, 300)
+    try {
+      await post(`/api/admin/libraries/${id}/scan`)
+      setTimeout(refresh, 300)
+    } catch (e) {
+      failed(e, 'Couldn’t start the scan')
+    }
   }
   const meta = async (id: number) => {
-    await post(`/api/admin/libraries/${id}/refresh`)
+    try {
+      await post(`/api/admin/libraries/${id}/refresh`)
+      toast('Refreshing metadata in the background', 'info')
+    } catch (e) {
+      failed(e, 'Couldn’t refresh metadata')
+    }
   }
   const remove = async (l: Library) => {
     if (!confirm(`Remove “${l.name}” from Lumen? Your files are not touched, but watch history for this library is lost.`)) return
-    await del(`/api/admin/libraries/${l.id}`)
-    refresh()
+    try {
+      await del(`/api/admin/libraries/${l.id}`)
+      refresh()
+    } catch (e) {
+      failed(e, 'Couldn’t remove the library')
+    }
   }
 
   return (

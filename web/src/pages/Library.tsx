@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, Filter, Shuffle } from 'lucide-react'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import type { Item } from '../api/types'
 import { CardSkeleton, PosterCard } from '../components/Cards'
 import { useLibraries } from '../components/Layout'
-import { EmptyState, PageTitle } from '../components/ui'
+import { EmptyState, PageTitle, toast } from '../components/ui'
 import { plural } from '../lib/format'
 import { useNavigate } from 'react-router-dom'
 
@@ -31,7 +31,8 @@ export default function LibraryPage() {
   const order = sp.get('order') || (sort === 'title' ? 'asc' : 'desc')
   const genre = sp.get('genre') || ''
   const played = sp.get('played') || ''
-  const letter = sp.get('letter') || ''
+  // The A–Z bar only shows when sorting by title, so the letter only applies then too.
+  const letter = sort === 'title' ? sp.get('letter') || '' : ''
   const set = (k: string, v: string) => {
     const n = new URLSearchParams(sp)
     if (v) n.set(k, v)
@@ -55,19 +56,26 @@ export default function LibraryPage() {
   const total = q.data?.pages[0]?.total ?? 0
 
   const sentinel = useRef<HTMLDivElement>(null)
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = q
+  // Re-observing after each page loads fires again while the sentinel is still on screen,
+  // so a tall window keeps filling.
   useEffect(() => {
     const el = sentinel.current
-    if (!el) return
+    if (!el || !hasNextPage || isFetchingNextPage) return
     const io = new IntersectionObserver((e) => {
-      if (e[0].isIntersecting && q.hasNextPage && !q.isFetchingNextPage) q.fetchNextPage()
+      if (e[0].isIntersecting) fetchNextPage()
     }, { rootMargin: '1200px' })
     io.observe(el)
     return () => io.disconnect()
-  }, [q])
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const shuffle = async () => {
-    const r = await api<{ items: Item[] }>(`/api/libraries/${id}/items?sort=random&limit=1`)
-    if (r.items[0]) nav(`/item/${r.items[0].id}`)
+    try {
+      const r = await api<{ items: Item[] }>(`/api/libraries/${id}/items?sort=random&limit=1`)
+      if (r.items[0]) nav(`/item/${r.items[0].id}`)
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t pick something', 'error')
+    }
   }
 
   return (
@@ -109,7 +117,8 @@ export default function LibraryPage() {
         {items.map((it) => <PosterCard key={it.id} item={it} className="cv-auto" />)}
         {(q.isLoading || q.isFetchingNextPage) && Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={'s' + i} />)}
       </div>
-      {!q.isLoading && !items.length && <EmptyState icon={<Filter className="size-8" />} title="Nothing matches">Try a different filter.</EmptyState>}
+      {q.error && !items.length && <EmptyState icon={<Filter className="size-8" />} title="Couldn’t load this library">{(q.error as Error).message}</EmptyState>}
+      {!q.isLoading && !q.error && !items.length && <EmptyState icon={<Filter className="size-8" />} title="Nothing matches">Try a different filter.</EmptyState>}
       <div ref={sentinel} className="h-4" />
     </div>
   )

@@ -160,7 +160,8 @@ func (c *Cache) resizeOnce(src, dst string, w int) error {
 	if wg, ok := c.inflight[dst]; ok {
 		c.mu.Unlock()
 		wg.Wait()
-		return nil
+		_, err := os.Stat(dst) // the other request's resize may have failed
+		return err
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

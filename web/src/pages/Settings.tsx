@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { LogOut, Monitor, Moon, Sun } from 'lucide-react'
 import { Avatar, PageTitle, toast } from '../components/ui'
-import { put } from '../api/client'
+import { ApiError, put } from '../api/client'
 import type { User } from '../api/types'
 import { signOut } from '../components/Layout'
 import { detectProfile } from '../lib/device'
@@ -22,9 +22,13 @@ export default function SettingsPage() {
   const profile = detectProfile()
 
   const saveServer = async (patch: Partial<User>) => {
-    const next = await put<User>('/api/me/preferences', { audioLang: user.audioLang, subtitleLang: user.subtitleLang, subtitleMode: user.subtitleMode, ...patch })
-    qc.setQueryData(['me'], next)
-    toast('Saved')
+    try {
+      const next = await put<User>('/api/me/preferences', { audioLang: user.audioLang, subtitleLang: user.subtitleLang, subtitleMode: user.subtitleMode, ...patch })
+      qc.setQueryData(['me'], next)
+      toast('Saved')
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t save', 'error')
+    }
   }
   const saveLocal = (p: Partial<typeof prefs>) => {
     savePrefs(p)

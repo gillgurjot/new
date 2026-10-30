@@ -116,16 +116,22 @@ func (s *Store) CreateSession(token string, userID int64, ttl time.Duration, ua,
 	return err
 }
 
-// SessionUser resolves a session token to its user, sliding last_seen.
-func (s *Store) SessionUser(token string) (*User, error) {
+// SessionUser resolves a session token to its user. Sessions in use slide: at most every
+// five minutes last_seen moves on and the expiry is pushed back to ttl from now, so only
+// sessions left unused for ttl end. slid reports whether that happened on this call.
+func (s *Store) SessionUser(token string, ttl time.Duration) (u *User, slid bool, err error) {
 	h := hashToken(token)
-	u, err := scanUser(s.DB.QueryRow(`SELECT `+prefixed("u.", userCols)+`
+	u, err = scanUser(s.DB.QueryRow(`SELECT `+prefixed("u.", userCols)+`
 		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash=? AND s.expires_at > ?`, h, now()))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	_, _ = s.DB.Exec(`UPDATE sessions SET last_seen=? WHERE token_hash=? AND last_seen < ?`, now(), h, now()-300)
-	return u, nil
+	t := now()
+	if res, err := s.DB.Exec(`UPDATE sessions SET last_seen=?, expires_at=? WHERE token_hash=? AND last_seen < ?`, t, t+int64(ttl.Seconds()), h, t-300); err == nil {
+		n, _ := res.RowsAffected()
+		slid = n > 0
+	}
+	return u, slid, nil
 }
 
 // DeleteSession removes a session and returns its stored id_token (for RP logout).

@@ -77,9 +77,13 @@ function Detail({ item, onChange }: { item: ItemDetail; onChange: () => void }) 
   const resumePos = playTarget?.userData?.played ? 0 : playTarget?.userData?.position || 0
   const ud = item.userData
   const toggle = async (kind: 'played' | 'favorite', on: boolean) => {
-    await (on ? post<UserData>(`/api/items/${item.id}/${kind}`) : del<UserData>(`/api/items/${item.id}/${kind}`))
-    if (kind === 'favorite') toast(on ? 'Added to My list' : 'Removed from My list', 'info')
-    onChange()
+    try {
+      await (on ? post<UserData>(`/api/items/${item.id}/${kind}`) : del<UserData>(`/api/items/${item.id}/${kind}`))
+      if (kind === 'favorite') toast(on ? 'Added to My list' : 'Removed from My list', 'info')
+      onChange()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t save that', 'error')
+    }
   }
 
   const directors = item.people?.filter((p) => p.role === 'director' || p.role === 'creator') || []
@@ -209,8 +213,10 @@ function useBrightLogo(src?: string) {
   useEffect(() => {
     setBright(false)
     if (!src) return
+    let alive = true
     const img = new Image()
     img.onload = () => {
+      if (!alive) return
       const c = document.createElement('canvas')
       c.width = 64
       c.height = 24
@@ -228,6 +234,9 @@ function useBrightLogo(src?: string) {
       setBright(n > 0 && sum / n > 170)
     }
     img.src = src
+    return () => {
+      alive = false
+    }
   }, [src])
   return bright
 }
@@ -277,9 +286,15 @@ function Seasons({ item, episodes }: { item: ItemDetail; episodes?: Item[] }) {
   const seriesId = item.type === 'series' ? item.id : item.seriesId!
   const seasons = useQuery({ queryKey: ['children', seriesId], queryFn: () => api<Item[]>(`/api/items/${seriesId}/children`) })
   const list = seasons.data || []
-  const initial = item.type === 'season' ? item.id : Number(sp.get('season')) || list.find((s) => s.unplayedCount && s.seasonNumber !== 0)?.id || list[0]?.id
-  const [sel, setSel] = useState<number | undefined>(initial)
-  useEffect(() => setSel(initial), [initial])
+  // The season you picked sticks; until then, the first one with something left to watch.
+  // (Deriving it each render means marking an episode watched doesn't jump to another season.)
+  const [picked, setSel] = useState<number>()
+  const fromUrl = Number(sp.get('season'))
+  const has = (id?: number) => !!id && list.some((s) => s.id === id)
+  const sel = item.type === 'season' ? item.id
+    : has(picked) ? picked
+    : has(fromUrl) ? fromUrl
+    : list.find((s) => s.unplayedCount && s.seasonNumber !== 0)?.id || list[0]?.id
   const eps = (episodes || []).filter((e) => e.parentId === sel)
   if (!list.length) return null
   return (
@@ -374,12 +389,17 @@ function AdminMenu({ item, onChange }: { item: Item; onChange: () => void }) {
   const refresh = async () => {
     setBusy(true)
     setOpen(false)
-    await post(`/api/admin/items/${item.id}/refresh`)
-    toast('Refreshing metadata…', 'info')
-    setTimeout(() => {
+    try {
+      await post(`/api/admin/items/${item.id}/refresh`)
+      toast('Refreshing metadata…', 'info')
+      setTimeout(() => {
+        setBusy(false)
+        onChange()
+      }, 4000)
+    } catch (e) {
       setBusy(false)
-      onChange()
-    }, 4000)
+      toast(e instanceof ApiError ? e.message : 'Couldn’t refresh', 'error')
+    }
   }
   return (
     <div className="relative">
@@ -409,8 +429,12 @@ function IdentifyDialog({ open, item, onClose, onDone }: { open: boolean; item: 
     enabled: open,
   })
   const pick = async (m: Match) => {
-    await post(`/api/admin/items/${item.id}/identify`, { tmdbId: m.id })
-    onDone()
+    try {
+      await post(`/api/admin/items/${item.id}/identify`, { tmdbId: m.id })
+      onDone()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t update the match', 'error')
+    }
   }
   return (
     <Sheet open={open} onClose={onClose} title="Fix match">

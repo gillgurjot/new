@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, Info, TriangleAlert, X } from 'lucide-react'
 
@@ -14,31 +14,43 @@ export function initials(name: string) {
 
 /** Round avatar: initials on a colour gradient, with the profile picture on top when it loads. */
 export function Avatar({ name, src, className = 'size-9 text-sm' }: { name: string; src?: string; className?: string }) {
-  const [ok, setOk] = useState(true)
+  const [broken, setBroken] = useState<string>()
+  const ok = broken !== src
   const tone = tones[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % tones.length]
   return (
     <span className={`relative inline-grid place-items-center shrink-0 rounded-full overflow-hidden bg-gradient-to-br ${tone} font-semibold text-white select-none ${className}`}>
       <span aria-hidden>{initials(name)}</span>
-      {src && ok && <img src={src} alt="" onError={() => setOk(false)} className="absolute inset-0 size-full object-cover" />}
+      {src && ok && <img src={src} alt="" onError={() => setBroken(src)} className="absolute inset-0 size-full object-cover" />}
     </span>
   )
 }
 
 // ---------- sheet / dialog ----------
 
+// Open sheets lock page scrolling; counted so closing one of two doesn't unlock it.
+let scrollLocks = 0
+function lockScroll() {
+  if (scrollLocks++ === 0) document.body.style.overflow = 'hidden'
+  return () => {
+    if (--scrollLocks === 0) document.body.style.overflow = ''
+  }
+}
+
 /** Bottom sheet on phones, centred dialog on larger screens. */
 export function Sheet({ open, onClose, title, children, wide = false }: { open: boolean; onClose: () => void; title?: React.ReactNode; children: React.ReactNode; wide?: boolean }) {
+  // Callers pass a new onClose each render; keep the listener and scroll lock steady.
+  const close = useRef(onClose)
+  close.current = onClose
   useEffect(() => {
     if (!open) return
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && close.current()
     window.addEventListener('keydown', key)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlock = lockScroll()
     return () => {
       window.removeEventListener('keydown', key)
-      document.body.style.overflow = prev
+      unlock()
     }
-  }, [open, onClose])
+  }, [open])
   if (!open) return null
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" role="dialog" aria-modal>
@@ -61,6 +73,14 @@ export function Sheet({ open, onClose, title, children, wide = false }: { open: 
 // ---------- popover menu ----------
 
 export function Menu({ open, onClose, children, align = 'right', className = '' }: { open: boolean; onClose: () => void; children: React.ReactNode; align?: 'left' | 'right'; className?: string }) {
+  const close = useRef(onClose)
+  close.current = onClose
+  useEffect(() => {
+    if (!open) return
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && close.current()
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [open])
   if (!open) return null
   return (
     <>

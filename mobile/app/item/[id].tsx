@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { FlatList, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -225,8 +225,9 @@ function Seasons({ item, episodes, initialSeason }: { item: ItemDetail; episodes
   const seasons = useQuery({ queryKey: ['children', seriesId], queryFn: () => api<Item[]>(`/api/items/${seriesId}/children`) })
   const list = seasons.data || []
   const initial = item.type === 'season' ? item.id : initialSeason || list.find((s) => s.unplayedCount && s.seasonNumber !== 0)?.id || list[0]?.id
-  const [sel, setSel] = useState<number | undefined>(initial)
-  useEffect(() => setSel(initial), [initial])
+  // Derived, not synced: marking an episode watched changes the default but never moves the user's pick.
+  const [picked, setSel] = useState<number>()
+  const sel = picked !== undefined && list.some((s) => s.id === picked) ? picked : initial
   const eps = (episodes || []).filter((e) => e.parentId === sel)
   if (!list.length) return null
   return (

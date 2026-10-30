@@ -67,8 +67,8 @@ func downloadName(title, series string, year int, season, episode *int, ext stri
 		}
 		return r
 	}, n)
-	if len(n) > 180 {
-		n = n[:180]
+	if r := []rune(n); len(r) > 180 {
+		n = string(r[:180])
 	}
 	return strings.TrimSpace(n) + ext
 }

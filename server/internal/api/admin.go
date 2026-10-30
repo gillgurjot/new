@@ -122,12 +122,20 @@ func (s *Server) adminUpdateLibrary(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad request")
 		return
 	}
+	id := idParam(r, "id")
+	if _, err := s.St.Library(id); err != nil {
+		s.notFoundOr500(w, err)
+		return
+	}
+	if strings.TrimSpace(b.Name) == "" {
+		writeErr(w, 400, "name is required")
+		return
+	}
 	paths, msg := cleanPaths(b.Paths)
 	if msg != "" {
 		writeErr(w, 400, msg)
 		return
 	}
-	id := idParam(r, "id")
 	if err := s.St.UpdateLibrary(id, strings.TrimSpace(b.Name), paths); err != nil {
 		s.notFoundOr500(w, err)
 		return

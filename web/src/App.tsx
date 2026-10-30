@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api } from './api/client'
+import { ApiError, api } from './api/client'
 import type { User } from './api/types'
 import Layout from './components/Layout'
 import Spinner from './components/Spinner'
@@ -33,7 +33,20 @@ export default function App() {
   const me = useQuery({ queryKey: ['me'], queryFn: () => api<User>('/api/me'), enabled: !onLogin, retry: false, staleTime: 300_000 })
 
   if (onLogin) return <Login />
-  if (me.isLoading || !me.data) return <Loading />
+  // 401: the API client is already on its way to the sign-in page.
+  if (me.isLoading || (me.error instanceof ApiError && me.error.status === 401)) return <Loading />
+  if (!me.data) {
+    // Anything else (server down, restarting) can be retried.
+    return (
+      <div className="grid place-items-center h-dvh p-6 text-center">
+        <div>
+          <div className="font-semibold text-lg mb-1">Can’t reach Lumen</div>
+          <p className="text-sm text-muted mb-5">{(me.error as Error | null)?.message || 'Something went wrong.'}</p>
+          <button className="btn-primary" onClick={() => me.refetch()} disabled={me.isFetching}>{me.isFetching ? 'Trying…' : 'Try again'}</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <UserContext.Provider value={me.data}>

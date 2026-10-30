@@ -91,7 +91,7 @@ func (s *Server) notFoundOr500(w http.ResponseWriter, err error) {
 // requireUser authenticates API calls with the session cookie.
 func (s *Server) requireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u := s.Auth.SessionUser(r)
+		u := s.Auth.Authenticate(w, r)
 		if u == nil {
 			writeErr(w, 401, "not signed in")
 			return

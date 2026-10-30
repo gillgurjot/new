@@ -4,7 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { Tabs } from 'expo-router'
 import { CircleUserRound, Download, House, Search, Sparkles, type LucideIcon } from 'lucide-react-native'
 import { useRequestsConfig } from '../../src/lib/queries'
-import { useDownloads } from '../../src/lib/downloads'
+import { useDownloadCount } from '../../src/lib/downloads'
 import { haptic } from '../../src/lib/haptics'
 import { motion } from '../../src/components/expressive'
 import { Text } from '../../src/components/ui'
@@ -52,7 +52,7 @@ export default function TabsLayout() {
   const { c } = useTheme()
   const s = useStyles()
   const cfg = useRequestsConfig()
-  const active = useDownloads().filter((d) => d.state === 'downloading').length
+  const active = useDownloadCount('downloading')
   return (
     <Tabs
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg }, animation: 'fade' }}

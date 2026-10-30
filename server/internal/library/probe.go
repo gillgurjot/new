@@ -164,7 +164,8 @@ func FindSidecars(video string) []store.Stream {
 	for _, e := range entries {
 		name := e.Name()
 		ext := strings.ToLower(filepath.Ext(name))
-		if e.IsDir() || !SubtitleExts[ext] || !strings.HasPrefix(name, base) {
+		// "Movie.en.srt" belongs to "Movie.mkv"; "Movie 2.srt" doesn't.
+		if e.IsDir() || !SubtitleExts[ext] || !strings.HasPrefix(name, base) || !strings.HasPrefix(name[len(base):], ".") {
 			continue
 		}
 		rest := strings.Trim(strings.TrimSuffix(name[len(base):], filepath.Ext(name)), ".")

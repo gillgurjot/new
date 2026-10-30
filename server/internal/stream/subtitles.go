@@ -2,6 +2,8 @@ package stream
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -51,7 +53,18 @@ func (s *Subtitles) VTT(ctx context.Context, m *store.MediaFile, index int) (str
 	if sub.ImageBased {
 		return "", fmt.Errorf("image-based subtitles can't be converted to text")
 	}
-	out := filepath.Join(s.dir, fmt.Sprintf("%d_%d_%d.vtt", m.ID, index, m.Mtime))
+	key := fmt.Sprintf("%d_%d_%d", m.ID, index, m.Mtime)
+	if sub.External {
+		// Sidecar numbers shift when files are added, and a sidecar can be replaced on its
+		// own (a better download), so key the cache by the file itself.
+		st, err := os.Stat(sub.Path)
+		if err != nil {
+			return "", err
+		}
+		h := sha1.Sum([]byte(fmt.Sprintf("%s|%d|%d", sub.Path, st.Size(), st.ModTime().UnixNano())))
+		key = fmt.Sprintf("%d_x%s", m.ID, hex.EncodeToString(h[:8]))
+	}
+	out := filepath.Join(s.dir, key+".vtt")
 	if _, err := os.Stat(out); err == nil {
 		return out, nil
 	}

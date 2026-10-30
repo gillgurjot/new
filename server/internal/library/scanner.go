@@ -33,13 +33,27 @@ type Scanner struct {
 	log       *slog.Logger
 	OnScanned func(libraryID int64)
 
-	mu     sync.Mutex
-	locks  map[int64]*sync.Mutex
-	status map[int64]*Status
+	mu      sync.Mutex
+	locks   map[int64]*sync.Mutex
+	status  map[int64]*Status
+	pending map[int64]bool // asked to scan again while a scan was running
 }
 
 func NewScanner(st *store.Store, ffprobe string, log *slog.Logger) *Scanner {
-	return &Scanner{st: st, ffprobe: ffprobe, log: log, locks: map[int64]*sync.Mutex{}, status: map[int64]*Status{}}
+	return &Scanner{st: st, ffprobe: ffprobe, log: log, locks: map[int64]*sync.Mutex{}, status: map[int64]*Status{}, pending: map[int64]bool{}}
+}
+
+// setPending records (or, with false, takes back) a request for another scan.
+func (s *Scanner) setPending(id int64, v bool) (was bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	was = s.pending[id]
+	if v {
+		s.pending[id] = true
+	} else {
+		delete(s.pending, id)
+	}
+	return was
 }
 
 func (s *Scanner) lock(id int64) *sync.Mutex {
@@ -83,13 +97,40 @@ type found struct {
 	mtime int64
 }
 
-// Scan synchronizes one library with disk. Concurrent scans of the same library are serialized.
+// Scan synchronizes one library with disk. A scan asked for while one is running (a file
+// copied in mid-scan, a library edited) runs again straight after, so no change is missed.
 func (s *Scanner) Scan(ctx context.Context, lib *store.Library) error {
 	l := s.lock(lib.ID)
 	if !l.TryLock() {
-		return nil // already scanning
+		s.setPending(lib.ID, true)
+		return nil
 	}
 	defer l.Unlock()
+	for {
+		s.setPending(lib.ID, false)
+		err := s.scan(ctx, lib)
+		if err != nil || ctx.Err() != nil || !s.setPending(lib.ID, false) {
+			return err
+		}
+		fresh, err := s.st.Library(lib.ID)
+		if err != nil {
+			return nil // deleted meanwhile
+		}
+		lib = fresh
+	}
+}
+
+// underAny reports whether p is inside one of the folders.
+func underAny(p string, dirs []string) bool {
+	for _, d := range dirs {
+		if p == d || strings.HasPrefix(p, d+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Scanner) scan(ctx context.Context, lib *store.Library) error {
 	start := time.Now()
 	s.setStatus(lib.ID, func(st *Status) { *st = Status{LibraryID: lib.ID, Running: true, Phase: "walking", Started: start} })
 	defer s.setStatus(lib.ID, func(st *Status) { st.Running = false; st.Phase = "done"; st.Finished = time.Now() })
@@ -99,15 +140,25 @@ func (s *Scanner) Scan(ctx context.Context, lib *store.Library) error {
 		return err
 	}
 	var files []found
+	// Files under these folders are kept even if not seen: the folder couldn't be read this
+	// time (an offline mount, a permission or disk error), which is not the same as deleted.
+	var unreadable []string
 	rootsOK := false
 	for _, root := range lib.Paths {
+		root = filepath.Clean(root)
 		if _, err := os.Stat(root); err != nil {
 			s.log.Warn("library path unavailable", "path", root, "err", err)
+			unreadable = append(unreadable, root)
 			continue
 		}
 		rootsOK = true
+		before := len(files)
 		_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
+				if d == nil || d.IsDir() {
+					s.log.Warn("can't read folder; keeping what's in it", "path", p, "err", err)
+					unreadable = append(unreadable, p)
+				}
 				return nil
 			}
 			if ctx.Err() != nil {
@@ -129,6 +180,16 @@ func (s *Scanner) Scan(ctx context.Context, lib *store.Library) error {
 			files = append(files, found{p, info.Size(), info.ModTime().Unix()})
 			return nil
 		})
+		if len(files) == before && ctx.Err() == nil {
+			// An empty root that used to have files is most likely an unmounted drive's mount point.
+			for p := range existing {
+				if underAny(p, []string{root}) {
+					s.log.Warn("library folder is empty but had files; is the drive mounted? keeping them", "path", root)
+					unreadable = append(unreadable, root)
+					break
+				}
+			}
+		}
 	}
 	if !rootsOK {
 		// Never wipe a library because its mount is offline.
@@ -213,6 +274,9 @@ func (s *Scanner) Scan(ctx context.Context, lib *store.Library) error {
 	s.setStatus(lib.ID, func(st *Status) { st.Phase = "cleanup" })
 	for p, r := range existing {
 		if !seen[p] {
+			if underAny(p, unreadable) {
+				continue
+			}
 			if err := s.st.RemoveFile(r); err == nil {
 				s.setStatus(lib.ID, func(st *Status) { st.Removed++ })
 			}

@@ -22,7 +22,8 @@ export default function Hero({ items }: { items: Item[] }) {
   }, [n, paused, i])
 
   if (!n) return null
-  const it = items[i]
+  // The list can shrink when Home refreshes (a title removed, access changed).
+  const it = items[i % n]
   const logo = imageUrl(it, 'logo', 420)
   const go = (d: number) => setI((x) => (x + d + n) % n)
 
@@ -49,7 +50,7 @@ export default function Hero({ items }: { items: Item[] }) {
             key={x.id}
             src={imageUrl(x, 'backdrop', 1600)}
             alt=""
-            className={`absolute inset-0 size-full object-cover object-[center_20%] transition-[opacity,transform] duration-[1200ms] ${idx === i ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.04]'}`}
+            className={`absolute inset-0 size-full object-cover object-[center_20%] transition-[opacity,transform] duration-[1200ms] ${idx === i % n ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.04]'}`}
             fetchPriority={idx === 0 ? 'high' : 'low'}
             loading={idx === 0 ? 'eager' : 'lazy'}
           />
@@ -92,9 +93,9 @@ export default function Hero({ items }: { items: Item[] }) {
                 key={x.id}
                 onClick={() => setI(idx)}
                 role="tab"
-                aria-selected={idx === i}
+                aria-selected={idx === i % n}
                 aria-label={`Show ${x.title}`}
-                className={`h-1.5 rounded-full transition-all duration-500 ease-[var(--ease-liquid)] ${idx === i ? 'w-7 bg-fg' : 'w-1.5 bg-fg/30 hover:bg-fg/60'}`}
+                className={`h-1.5 rounded-full transition-all duration-500 ease-[var(--ease-liquid)] ${idx === i % n ? 'w-7 bg-fg' : 'w-1.5 bg-fg/30 hover:bg-fg/60'}`}
               />
             ))}
           </div>

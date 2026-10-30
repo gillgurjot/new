@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BackHandler, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
-import Video, { SelectedTrackType, type OnLoadData, type OnProgressData, type VideoRef } from 'react-native-video'
+import Video, { SelectedTrackType, type OnLoadData, type OnProgressData, type OnVideoErrorData, type VideoRef } from 'react-native-video'
 import { File } from 'expo-file-system'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -10,7 +10,7 @@ import {
 import { ApiError, abs, api, authHeaders, landscapePath, post } from '../api/client'
 import type { Item, PlaybackInfo } from '../api/types'
 import { useUser } from '../lib/auth'
-import { type Download, queueProgress, saveOfflinePosition, useDownloads } from '../lib/downloads'
+import { type Download, getDownloads, queueProgress, saveOfflinePosition } from '../lib/downloads'
 import { episodeLabel, formatTime } from '../lib/format'
 import { getPrefs, qualityOptions, setPrefs, usePrefs } from '../lib/prefs'
 import { deviceProfile, safeProfile } from '../lib/profile'
@@ -49,6 +49,10 @@ interface StartOpts {
 
 type Menu = null | 'subs' | 'audio' | 'settings'
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+// Fixed props for <Video>. New objects every render (several a second while playing) would
+// make the native player re-apply them each time.
+const NO_TEXT_TRACK = { type: SelectedTrackType.DISABLED }
+const CONTROLS_STYLES = { hideLiveBadge: true }
 
 /** A playback "session" for a file on the phone, shaped like the server's. */
 function localInfo(d: Download, start: number, audioLang: string): PlaybackInfo {
@@ -120,7 +124,6 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
   useEffect(() => {
     if (partyId && partyPanel) setPartyOpen(true) // just started one: show the invite link
   }, [partyId, partyPanel])
-  const downloads = useDownloads()
   const trick = useTrickplay(local ? undefined : info?.trickplay, info?.media.id)
 
   const setPaused = useCallback((p: boolean) => {
@@ -218,7 +221,9 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
     setNext(null)
     start({ startTime })
     const iv = setInterval(async () => {
-      if (pausedRef.current) return
+      // Streams keep reporting while paused: the server ends a conversion nobody has
+      // checked on for 90 seconds, and resuming would then fall back to safe mode.
+      if (pausedRef.current && (local || infoRef.current?.method === 'direct')) return
       const r = (await report()) as { sessionAlive?: boolean } | null
       const i = infoRef.current
       // The server ends idle conversions; pick up where we are with a new one.
@@ -238,7 +243,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
     api<Item | null>(`/api/items/${it.id}/next`)
       .then(setNext)
       .catch(() => {
-        const mine = downloads
+        const mine = getDownloads()
           .filter((d) => d.state === 'done' && d.item.seriesId === it.seriesId && d.item.type === 'episode')
           .map((d) => d.item)
           .filter((e) => (e.seasonNumber ?? 0) > (it.seasonNumber ?? 0) || ((e.seasonNumber ?? 0) === (it.seasonNumber ?? 0) && (e.episodeNumber ?? 0) > (it.episodeNumber ?? 0)))
@@ -537,15 +542,19 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
     if (next && getPrefs().autoplayNext) goNext(next.id)
     else if (!next) onExit()
   }
-  const onError = () => {
+  const onError = (e: OnVideoErrorData) => {
     const i = infoRef.current
     if (!i || local) {
       setError('This file can’t be played on this phone.')
       return
     }
     const at = nowAbs()
-    // The phone couldn't decode it (a codec surprise): have the server convert everything.
-    if (!safeMode.current) {
+    // ExoPlayer codes arrive as "2" + PlaybackException code: 2xxx network/IO, 1003 timeout.
+    // Those deserve a plain retry; anything else (decoder, format) is a codec surprise.
+    const code = e?.error?.errorCode || ''
+    const network = /^2(2\d{3}|1003)$/.test(code)
+    if (!safeMode.current && !network) {
+      // The phone couldn't decode it: have the server convert everything.
       retries.current++
       start({ startTime: at, safe: true })
     } else if (retries.current < 3) {
@@ -608,7 +617,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
           paused={paused}
           rate={speed}
           selectedAudioTrack={exoAudioTrack}
-          selectedTextTrack={{ type: SelectedTrackType.DISABLED }}
+          selectedTextTrack={NO_TEXT_TRACK}
           onLoad={onLoad}
           onProgress={onProgress}
           onBuffer={({ isBuffering }) => setBuffering(isBuffering)}
@@ -620,7 +629,7 @@ export default function Player({ itemId, startTime, download, partyId, partyPane
           showNotificationControls
           enterPictureInPictureOnLeave={!paused}
           controls={false}
-          controlsStyles={{ hideLiveBadge: true }}
+          controlsStyles={CONTROLS_STYLES}
           shutterColor="#000000"
           playInBackground={false}
         />

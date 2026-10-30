@@ -82,7 +82,17 @@ func (s *Server) partyEvents(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, "streaming unsupported")
 		return
 	}
-	ch, leave, err := s.Party.Join(chi.URLParam(r, "id"), member(u))
+	id := chi.URLParam(r, "id")
+	snap, err := s.Party.Snapshot(id)
+	if err != nil {
+		s.partyErr(w, err)
+		return
+	}
+	if _, err := s.St.Item(snap.State.ItemID, u); err != nil {
+		writeErr(w, 403, "You don't have access to what this party is watching.")
+		return
+	}
+	ch, leave, err := s.Party.Join(id, member(u))
 	if err != nil {
 		s.partyErr(w, err)
 		return

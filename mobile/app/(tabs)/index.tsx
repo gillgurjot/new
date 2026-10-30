@@ -11,7 +11,7 @@ import Hero from '../../src/components/Hero'
 import { Row } from '../../src/components/cards'
 import { Button, Chip, EmptyState, Loading, Text } from '../../src/components/ui'
 import { Shape } from '../../src/components/expressive'
-import { useDownloads } from '../../src/lib/downloads'
+import { useDownloadCount } from '../../src/lib/downloads'
 import { alpha, makeStyles, useTheme } from '../../src/theme'
 
 export default function Home() {
@@ -21,7 +21,7 @@ export default function Home() {
   const q = useQuery({ queryKey: ['home'], queryFn: () => api<HomeData>('/api/home') })
   const [refreshing, setRefreshing] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const downloads = useDownloads().filter((d) => d.state === 'done')
+  const downloaded = useDownloadCount('done')
 
   const paused = q.fetchStatus === 'paused' // react-query thinks the phone is offline
   if (!q.data && !q.error && !paused) return <Loading />
@@ -36,7 +36,7 @@ export default function Home() {
           action={
             <View style={{ gap: 10, alignItems: 'center' }}>
               <Button title="Try again" variant="filled" onPress={() => q.refetch()} loading={q.isFetching} />
-              {downloads.length > 0 && <Button title={`Watch downloads (${downloads.length})`} icon={Download} onPress={() => router.navigate('/downloads')} />}
+              {downloaded > 0 && <Button title={`Watch downloads (${downloaded})`} icon={Download} onPress={() => router.navigate('/downloads')} />}
             </View>
           }
         >

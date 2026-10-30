@@ -378,10 +378,14 @@ func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, cl claims, 
 		return nil, "", errors.New("Could not create session")
 	}
 	if !app {
-		http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: a.cfg.SecureCookies,
-			SameSite: http.SameSiteLaxMode, MaxAge: int(a.cfg.SessionTTL.Seconds())})
+		http.SetCookie(w, a.sessionCookie(token))
 	}
 	return u, token, nil
+}
+
+func (a *Auth) sessionCookie(token string) *http.Cookie {
+	return &http.Cookie{Name: SessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: a.cfg.SecureCookies,
+		SameSite: http.SameSiteLaxMode, MaxAge: int(a.cfg.SessionTTL.Seconds())}
 }
 
 // DevLogin signs in without an identity provider. Only enabled by LUMEN_DEV_INSECURE_LOGIN for testing.
@@ -446,15 +450,32 @@ func FromApp(r *http.Request) bool {
 
 // SessionUser returns the signed-in user for a request (cookie or bearer token).
 func (a *Auth) SessionUser(r *http.Request) *store.User {
-	t := sessionToken(r)
-	if t == "" {
-		return nil
-	}
-	u, err := a.st.SessionUser(t)
-	if err != nil || u.Disabled {
-		return nil
+	u, _ := a.session(r)
+	return u
+}
+
+// Authenticate is SessionUser for request handlers: when the session's expiry moves on, the
+// browser's cookie is renewed too, so someone using Lumen regularly stays signed in.
+func (a *Auth) Authenticate(w http.ResponseWriter, r *http.Request) *store.User {
+	u, slid := a.session(r)
+	if u != nil && slid && !FromApp(r) {
+		if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {
+			http.SetCookie(w, a.sessionCookie(c.Value))
+		}
 	}
 	return u
+}
+
+func (a *Auth) session(r *http.Request) (*store.User, bool) {
+	t := sessionToken(r)
+	if t == "" {
+		return nil, false
+	}
+	u, slid, err := a.st.SessionUser(t, a.cfg.SessionTTL)
+	if err != nil || u.Disabled {
+		return nil, false
+	}
+	return u, slid
 }
 
 // MediaToken grants read access to media endpoints for cookie-less clients (Chromecast).

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Cpu, Film, HardDrive, MonitorPlay, Pause, Play, Tv, Users, X } from 'lucide-react'
-import { api, del } from '../../api/client'
+import { ApiError, api, del } from '../../api/client'
+import { toast } from '../../components/ui'
 import type { PlaySession, SystemInfo } from '../../api/types'
 import { formatTime } from '../../lib/format'
 
@@ -10,8 +11,12 @@ export default function Dashboard() {
   const sessions = useQuery({ queryKey: ['admin', 'sessions'], queryFn: () => api<PlaySession[]>('/api/admin/sessions'), refetchInterval: 3_000 })
   const s = sys.data
   const stop = async (id: string) => {
-    await del(`/api/admin/sessions/${id}`)
-    qc.invalidateQueries({ queryKey: ['admin', 'sessions'] })
+    try {
+      await del(`/api/admin/sessions/${id}`)
+      qc.invalidateQueries({ queryKey: ['admin', 'sessions'] })
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t stop the stream', 'error')
+    }
   }
   const uptime = s ? `${Math.floor(s.uptime / 86400)}d ${Math.floor((s.uptime % 86400) / 3600)}h ${Math.floor((s.uptime % 3600) / 60)}m` : ''
   const active = sessions.data || []

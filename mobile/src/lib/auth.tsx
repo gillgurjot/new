@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import * as WebBrowser from 'expo-web-browser'
 import * as Crypto from 'expo-crypto'
-import { ApiError, api, post, setSession, setUnauthorizedHandler } from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
+import { ApiError, api, getServer, post, setSession, setUnauthorizedHandler } from '../api/client'
 import type { User } from '../api/types'
 
 const K_SERVER = 'lumen.server'
@@ -56,12 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(K_USER, JSON.stringify(u)).catch(() => {})
   }, [])
 
+  const qc = useQueryClient()
+  // Keeps the current address (the restore effect calls this before `server` state catches up)
+  // and drops every cached query so the next account never sees this one's library.
   const clear = useCallback(async () => {
-    setSession(server, '')
+    setSession(getServer(), '')
     setUserState(null)
+    qc.clear()
     await SecureStore.deleteItemAsync(K_TOKEN).catch(() => {})
     await AsyncStorage.removeItem(K_USER).catch(() => {})
-  }, [server])
+  }, [qc])
 
   // Restore the last session. Works offline: the cached profile is enough to reach downloads.
   useEffect(() => {
